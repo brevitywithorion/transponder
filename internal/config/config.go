@@ -11,8 +11,11 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/raven-clown/transponder/internal/provider/registry"
 )
 
 const envPrefix = "TRANSPONDER_"
@@ -27,6 +30,15 @@ type Bootstrap struct {
 
 	Providers []Provider `yaml:"providers"`
 	Routes    []Route    `yaml:"routes"`
+	Settings  Settings   `yaml:"settings"`
+}
+
+// Settings tune how calls to providers are made.
+type Settings struct {
+	// AttemptTimeout is how long an upstream may take to answer with headers.
+	AttemptTimeout time.Duration `yaml:"attempt_timeout"`
+	// RequestTimeout bounds a whole call, streaming included.
+	RequestTimeout time.Duration `yaml:"request_timeout"`
 }
 
 // Provider is one backend declared in the file.
@@ -97,6 +109,12 @@ func Load(path string, environ []string) (*Bootstrap, error) {
 	if c.Store.SQLite == "" && c.Store.Postgres == "" {
 		c.Store.SQLite = "./transponder.db"
 	}
+	if c.Settings.AttemptTimeout == 0 {
+		c.Settings.AttemptTimeout = time.Minute
+	}
+	if c.Settings.RequestTimeout == 0 {
+		c.Settings.RequestTimeout = 10 * time.Minute
+	}
 	return c, c.validate()
 }
 
@@ -109,6 +127,12 @@ func (c *Bootstrap) validate() error {
 	default:
 		return fmt.Errorf("config: log_level %q must be debug, info, warn or error", c.LogLevel)
 	}
+	if c.Settings.AttemptTimeout < 0 {
+		return fmt.Errorf("config: settings.attempt_timeout %s must be positive", c.Settings.AttemptTimeout)
+	}
+	if c.Settings.RequestTimeout < 0 {
+		return fmt.Errorf("config: settings.request_timeout %s must be positive", c.Settings.RequestTimeout)
+	}
 	names := map[string]bool{}
 	for i, p := range c.Providers {
 		switch {
@@ -117,13 +141,12 @@ func (c *Bootstrap) validate() error {
 		case names[p.Name]:
 			return fmt.Errorf("config: provider %q is declared twice", p.Name)
 		}
-		switch p.Type {
-		case "echo", "openai", "ollama", "cloudflare", "litellm":
-		default:
-			return fmt.Errorf("config: provider %q has unknown type %q", p.Name, p.Type)
+		spec, ok := registry.Lookup(p.Type)
+		if !ok {
+			return fmt.Errorf("config: provider %q has unknown type %q; known types are %s", p.Name, p.Type, strings.Join(registry.Types(), ", "))
 		}
-		if p.Type == "cloudflare" && p.BaseURL == "" {
-			return fmt.Errorf("config: provider %q of type cloudflare needs base_url", p.Name)
+		if spec.NeedsBaseURL && p.BaseURL == "" {
+			return fmt.Errorf("config: provider %q of type %s needs base_url", p.Name, p.Type)
 		}
 		names[p.Name] = true
 	}

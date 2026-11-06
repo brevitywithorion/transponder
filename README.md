@@ -25,7 +25,7 @@ An LLM gateway that knows who is spending what. One Go binary in front of Anthro
 
 ## What it does
 
-- Speaks the OpenAI API (`/v1/chat/completions`, `/v1/embeddings`) and the Anthropic API (`/v1/messages`), so the OpenAI and Anthropic SDKs, Claude Code and most tools work with only a base URL change.
+- Speaks the OpenAI API (`/v1/chat/completions`, `/v1/embeddings`, `/v1/models`) and the Anthropic API (`/v1/messages`), so the OpenAI and Anthropic SDKs, Claude Code and most tools work with only a base URL change.
 - Sends each call to Anthropic, OpenAI, Gemini or Ollama, and to any OpenAI-compatible server such as vLLM or LM Studio.
 - Falls back to the next provider when one is down, rate limited or out of credit, and skips a provider that keeps failing for a while.
 - Knows the caller from an OIDC token (Okta, Entra, Keycloak, Zitadel, Google, Auth0 and others) or an API key, and records tokens and cost in USD for every call.
@@ -52,7 +52,7 @@ Sources: bifrost's [enterprise overview](https://github.com/maximhq/bifrost/blob
 
 transponder has no paid edition and never will. SSO, roles, the audit log, replicas and the admin API are all in the Apache-2.0 build.
 
-It is also small on purpose. One provider is one Go package, a few hundred lines with recorded test fixtures, so adding a backend is a weekend pull request.
+It is also small on purpose. One provider is one Go package and one line in `internal/provider/registry`, so adding a backend is a weekend pull request.
 
 ## Part of mothership
 
@@ -95,6 +95,9 @@ providers:
     type: ollama          # http://localhost:11434/v1 unless base_url is set
   - name: proxy
     type: litellm         # http://localhost:4000/v1 unless base_url is set
+  - name: router
+    type: openrouter      # https://openrouter.ai/api/v1 unless base_url is set
+    api_key: ${OPENROUTER_API_KEY}
   - name: cf
     type: cloudflare      # set base_url to your AI Gateway compatibility endpoint
     base_url: https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/compat

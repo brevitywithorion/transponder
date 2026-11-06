@@ -4,6 +4,7 @@ package router
 import (
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/raven-clown/transponder/internal/provider"
@@ -16,6 +17,7 @@ var ErrNoRoute = errors.New("router: no route matches the model")
 type Target struct {
 	Provider provider.Provider
 	Type     string
+	Free     bool
 	Model    string
 }
 
@@ -30,6 +32,7 @@ type Resolved struct {
 	Route    string
 	Provider provider.Provider
 	Type     string
+	Free     bool
 	Model    string
 }
 
@@ -63,7 +66,25 @@ func (r *Router) Resolve(model string) (Resolved, error) {
 		if up == "" {
 			up = model
 		}
-		return Resolved{Route: rt.Match, Provider: t.Provider, Type: t.Type, Model: up}, nil
+		return Resolved{Route: rt.Match, Provider: t.Provider, Type: t.Type, Free: t.Free, Model: up}, nil
 	}
 	return Resolved{}, ErrNoRoute
+}
+
+// Models returns the names a caller can ask for: every route match without a wildcard,
+// sorted and without duplicates. The models targets send upstream are left out, since a
+// caller asking for one of them would not reach that route.
+func (r *Router) Models() []string {
+	seen := map[string]bool{}
+	for _, rt := range r.routes {
+		if !strings.ContainsAny(rt.Match, "*?") {
+			seen[rt.Match] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for m := range seen {
+		out = append(out, m)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -242,7 +242,7 @@ Cooldown: after 3 failures in a row a target is skipped for 30 seconds. Both num
 
 Streaming: transponder reads the upstream until its first event before writing anything to the client. A failure before that point falls back like any other call. After the first byte is sent the target is committed, and a later failure ends the stream with an error event in the caller's dialect.
 
-Each attempt has a timeout (`attempt_timeout`, default 60s until first byte) and the whole request has `request_timeout` (default 10m, since long generations are normal).
+Each streamed attempt has a timeout (`attempt_timeout`, default 60s until the first event) and every request has `request_timeout` (default 10m, since long generations are normal). A call that is not streamed has only the request timeout: its headers arrive once the whole answer is generated, so an attempt clock would cut long answers.
 
 ## 8. Identity, roles and secrets
 
@@ -392,7 +392,7 @@ The `Store` interface is split by concern (`UsageStore`, `ConfigStore`, `AuditSt
 
 Tables:
 
-- `usage`: id, org_id, time, request_id, user, teams, key, project, route, provider, model, endpoint, input, output, cache_read, cache_write, cost_nusd, estimated, status, latency_ms, fallbacks.
+- `usage`: id, org_id, time, request_id, user_id, teams, key, project, route, provider, model, endpoint, input, output, cache_read, cache_write, cost_nusd, estimated, status, latency_ms, fallbacks.
 - `spend`: org_id, subject, period, period_start, cost_nusd, primary key on the first four. Updated with `INSERT ... ON CONFLICT DO UPDATE SET cost_nusd = spend.cost_nusd + excluded.cost_nusd`, which both databases support, so concurrent replicas never lose an update.
 - `providers`, `routes`, `route_targets`, `budgets`, `api_keys`, `prices`, `settings`: runtime config, each with `org_id`, `version`, `source`, `created_at`, `updated_at`.
 - `audit`: id, org_id, time, actor (user and key), action, resource kind and id, a JSON diff of the change with secrets replaced by `"***"`, request id.

@@ -29,6 +29,10 @@ type Deps struct {
 	Usage  store.UsageStore
 	Logger *slog.Logger
 	Now    func() time.Time
+	// AttemptTimeout bounds the wait for the first event of a stream. Zero means no limit.
+	AttemptTimeout time.Duration
+	// RequestTimeout bounds each call, streams included. Zero means no limit.
+	RequestTimeout time.Duration
 }
 
 // New returns the gateway handler.
@@ -37,7 +41,15 @@ func New(d Deps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/chat/completions", g.chat)
 	mux.HandleFunc("POST /v1/embeddings", g.embeddings)
-	return mux
+	mux.HandleFunc("GET /v1/models", g.models)
+	if d.RequestTimeout <= 0 {
+		return mux
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), d.RequestTimeout)
+		defer cancel()
+		mux.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 type gateway struct {
@@ -112,6 +124,10 @@ func (g *gateway) price(ctx context.Context, c *call, u schema.Usage) int64 {
 	c.rec.OutputTokens = u.OutputTokens
 	c.rec.CacheReadTokens = u.CacheReadTokens
 	c.rec.CacheWriteTokens = u.CacheWriteTokens
+	if c.resolved.Free {
+		c.rec.CostNUSD = 0
+		return 0
+	}
 	cost, priced := g.d.Prices.Cost(c.resolved.Type, c.resolved.Model, u)
 	if !priced {
 		g.d.Logger.InfoContext(ctx, "unpriced", "provider", c.rec.Provider, "model", c.rec.Model)
