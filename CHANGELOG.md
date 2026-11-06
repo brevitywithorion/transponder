@@ -9,6 +9,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `type: ollama` providers send `api_key` as a bearer token, for Ollama behind an auth proxy or hosted Ollama. Without a key no header is sent.
 - `transponder --version` shows the commit and build time, for example `transponder dev (1a2b3c4, 2026-11-04T10:00:00Z)`, and `, modified` when the tree had uncommitted changes.
 
+### Fixed
+
+- A chat request with a wrong field type now says what to fix, such as `max_tokens must be an integer`, with `param` set to the field, instead of showing Go type names.
+
 ## [0.1.3] - 2026-11-05
 
 ### Added
