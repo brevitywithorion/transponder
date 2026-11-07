@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- vLLM provider (`type: vllm`) defaulting to `http://localhost:8000/v1` and forwarding `api_key` as a bearer token. Targets using `vllm` count as free in usage costs.
 - `transponder --check-update` lists the releases newer than the running one, how urgent they are and which changes touch the providers in your config. It only reads the release list and never installs anything.
 - `update_check: true` logs one `update available` line at start and once a day when a newer release is out. Off by default.
 - Releases come with binaries for Linux, macOS and Windows on amd64 and arm64, a `release.json` describing each change, and a container image at `ghcr.io/raven-clown/transponder`.
