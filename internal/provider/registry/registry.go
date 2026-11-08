@@ -7,8 +7,10 @@ import (
 	"sort"
 
 	"github.com/raven-clown/transponder/internal/provider"
+	"github.com/raven-clown/transponder/internal/provider/anthropic"
 	"github.com/raven-clown/transponder/internal/provider/cloudflare"
 	"github.com/raven-clown/transponder/internal/provider/echo"
+	"github.com/raven-clown/transponder/internal/provider/gemini"
 	"github.com/raven-clown/transponder/internal/provider/litellm"
 	"github.com/raven-clown/transponder/internal/provider/ollama"
 	"github.com/raven-clown/transponder/internal/provider/openai"
@@ -35,7 +37,7 @@ type Spec struct {
 var specs = []Spec{
 	{Type: "echo", Free: true, New: func(s Settings) provider.Provider { return echo.New(s.Name) }},
 	{Type: "openai", New: func(s Settings) provider.Provider {
-		return openai.New(openai.Options{Name: s.Name, BaseURL: s.BaseURL, APIKey: s.APIKey, Client: s.Client})
+		return openai.New(openai.Options{Name: s.Name, BaseURL: s.BaseURL, APIKey: s.APIKey, Client: s.Client, MaxCompletionTokens: true})
 	}},
 	{Type: "ollama", Free: true, New: func(s Settings) provider.Provider {
 		return ollama.New(s.Name, s.BaseURL, s.APIKey, s.Client)
@@ -45,6 +47,12 @@ var specs = []Spec{
 	}},
 	{Type: "cloudflare", NeedsBaseURL: true, New: func(s Settings) provider.Provider {
 		return cloudflare.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "anthropic", New: func(s Settings) provider.Provider {
+		return anthropic.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "gemini", New: func(s Settings) provider.Provider {
+		return gemini.New(s.Name, s.BaseURL, s.APIKey, s.Client)
 	}},
 	{Type: "openrouter", New: func(s Settings) provider.Provider {
 		return openrouter.New(s.Name, s.BaseURL, s.APIKey, s.Client)

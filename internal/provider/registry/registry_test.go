@@ -18,6 +18,8 @@ func TestLookup(t *testing.T) {
 		{typ: "litellm"},
 		{typ: "cloudflare", needsBaseURL: true},
 		{typ: "openrouter"},
+		{typ: "anthropic"},
+		{typ: "gemini"},
 		{typ: "vllm", free: true},
 	}
 	for _, tt := range tests {
