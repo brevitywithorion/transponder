@@ -10,9 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/raven-clown/transponder/internal/schema"
+	"github.com/raven-clown/transponder/internal/tokens"
 )
 
 // skipSignature stands in for a thought signature on a function call that did not come from
@@ -204,12 +204,13 @@ type usageMetadata struct {
 	ThoughtsTokenCount      int64 `json:"thoughtsTokenCount"`
 }
 
-// canonical counts thinking as output, as Gemini bills it.
+// canonical keeps thinking apart as reasoning tokens, which are billed at the output price.
 func (u usageMetadata) canonical() schema.Usage {
 	return schema.Usage{
 		InputTokens:     u.PromptTokenCount - u.CachedContentTokenCount,
 		CacheReadTokens: u.CachedContentTokenCount,
-		OutputTokens:    u.CandidatesTokenCount + u.ThoughtsTokenCount,
+		OutputTokens:    u.CandidatesTokenCount,
+		ReasoningTokens: u.ThoughtsTokenCount,
 	}
 }
 
@@ -391,7 +392,7 @@ func DecodeEmbedResponse(body []byte, model string, input []string) (*schema.Emb
 		resp.Vectors = append(resp.Vectors, e.Values)
 	}
 	for _, in := range input {
-		resp.Usage.InputTokens += int64((utf8.RuneCountInString(in) + 3) / 4)
+		resp.Usage.InputTokens += tokens.Estimate(in)
 	}
 	return resp, nil
 }

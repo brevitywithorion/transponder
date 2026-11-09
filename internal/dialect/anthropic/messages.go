@@ -316,18 +316,28 @@ func inputObject(args string) json.RawMessage {
 }
 
 type wireUsage struct {
-	InputTokens              int64 `json:"input_tokens"`
-	OutputTokens             int64 `json:"output_tokens"`
-	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+	InputTokens              int64          `json:"input_tokens"`
+	OutputTokens             int64          `json:"output_tokens"`
+	CacheCreationInputTokens int64          `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64          `json:"cache_read_input_tokens"`
+	CacheCreation            *cacheCreation `json:"cache_creation,omitempty"`
+}
+
+type cacheCreation struct {
+	Ephemeral1h int64 `json:"ephemeral_1h_input_tokens"`
 }
 
 func (u wireUsage) canonical() schema.Usage {
-	return schema.Usage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheReadTokens: u.CacheReadInputTokens, CacheWriteTokens: u.CacheCreationInputTokens}
+	out := schema.Usage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheReadTokens: u.CacheReadInputTokens, CacheWriteTokens: u.CacheCreationInputTokens}
+	if u.CacheCreation != nil {
+		out.CacheWrite1hTokens = u.CacheCreation.Ephemeral1h
+	}
+	return out
 }
 
+// encodeUsage counts reasoning inside the output, as Anthropic does.
 func encodeUsage(u schema.Usage) wireUsage {
-	return wireUsage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheCreationInputTokens: u.CacheWriteTokens, CacheReadInputTokens: u.CacheReadTokens}
+	return wireUsage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens + u.ReasoningTokens, CacheCreationInputTokens: u.CacheWriteTokens, CacheReadInputTokens: u.CacheReadTokens}
 }
 
 type wireResponse struct {

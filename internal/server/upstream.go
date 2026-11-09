@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/raven-clown/transponder/internal/provider"
+	"github.com/raven-clown/transponder/internal/tokens"
 )
 
 // nativeTarget returns the target as a Native adapter when it speaks the caller's dialect.
@@ -47,7 +48,7 @@ func (g *gateway) upstreamFailed(c *call, err error, sameDialect bool) {
 		c.fail(c.w, http.StatusBadGateway, "api_error", "upstream_error", "", "the provider did not answer")
 		c.rec.Status = http.StatusBadGateway
 	}
-	g.record(ctx, c.rec)
+	g.recordCall(ctx, c)
 }
 
 var errUpstreamTooLarge = errors.New("the provider's response is larger than the gateway accepts")
@@ -61,8 +62,7 @@ func readUpstream(resp *http.Response) ([]byte, error) {
 }
 
 func estimateTokens(s string) int64 {
-	n := int64(len([]rune(s)))
-	return (n + 3) / 4
+	return tokens.Estimate(s)
 }
 
 // upstreamMessage reads error.message, which OpenAI, Anthropic and Gemini all use, from an

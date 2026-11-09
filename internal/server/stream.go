@@ -18,7 +18,7 @@ import (
 	"github.com/raven-clown/transponder/internal/sse"
 )
 
-var usageTrailers = strings.Join([]string{"X-Usage-Input-Tokens", "X-Usage-Output-Tokens", "X-Usage-Cost-USD"}, ", ")
+var usageTrailers = strings.Join([]string{"X-Usage-Input-Tokens", "X-Usage-Output-Tokens", "X-Usage-Reasoning-Tokens", "X-Usage-Cost-USD"}, ", ")
 
 // sse writes an event stream whose usage arrives as trailers.
 type sseWriter struct {
@@ -109,7 +109,7 @@ func (g *gateway) chatStreamNative(c *call, n provider.Native, includeUsage bool
 	cost := g.price(ctx, c, u)
 	out.finish(u, cost)
 	c.rec.Status = http.StatusOK
-	g.record(ctx, c.rec)
+	g.recordCall(ctx, c)
 }
 
 func (g *gateway) chatStreamCanonical(c *call, includeUsage bool) {
@@ -172,7 +172,7 @@ func (g *gateway) chatStreamCanonical(c *call, includeUsage bool) {
 	cost := g.price(ctx, c, u)
 	out.finish(u, cost)
 	c.rec.Status = http.StatusOK
-	g.record(ctx, c.rec)
+	g.recordCall(ctx, c)
 }
 
 var errAttemptTimeout = errors.New("the provider did not start the stream within the attempt timeout")

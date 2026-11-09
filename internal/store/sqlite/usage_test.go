@@ -32,6 +32,7 @@ func record(i int64, org string) store.UsageRecord {
 		CacheReadTokens:  3,
 		CacheWriteTokens: 4,
 		CostNUSD:         4542000,
+		ReasoningTokens:  7,
 		Estimated:        true,
 		Status:           200,
 		Latency:          150 * time.Millisecond,
@@ -125,5 +126,32 @@ func TestMigrationKeepsUsage(t *testing.T) {
 	var n int
 	if err := db.sql.QueryRowContext(ctx, `SELECT count(*) FROM pragma_table_info('usage') WHERE name = 'user'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("usage still has a user column (%d, %v)", n, err)
+	}
+}
+
+func TestUsageSince(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	base := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	for _, r := range []store.UsageRecord{
+		{OrgID: store.DefaultOrg, Time: base.AddDate(0, -1, 0), User: "old", CostNUSD: 1},
+		{OrgID: store.DefaultOrg, Time: base, User: "alice", Teams: []string{"t"}, Key: "k", InputTokens: 1, OutputTokens: 2, CacheReadTokens: 3, CacheWriteTokens: 4, ReasoningTokens: 5, CostNUSD: 6},
+		{OrgID: "other", Time: base, User: "bob", CostNUSD: 1},
+	} {
+		if err := db.RecordUsage(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got []store.UsageRecord
+	err := db.UsageSince(ctx, store.DefaultOrg, base.Add(-time.Hour), func(r store.UsageRecord) error {
+		got = append(got, r)
+		return nil
+	})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("records %+v %v", got, err)
+	}
+	r := got[0]
+	if r.User != "alice" || r.Key != "k" || len(r.Teams) != 1 || r.InputTokens+r.OutputTokens+r.CacheReadTokens+r.CacheWriteTokens+r.ReasoningTokens != 15 || r.CostNUSD != 6 || !r.Time.Equal(base) {
+		t.Fatalf("record %+v", r)
 	}
 }

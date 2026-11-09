@@ -21,7 +21,7 @@ var embedded []byte
 
 // Price is nano-USD per million tokens.
 type Price struct {
-	Input, Output, CacheRead, CacheWrite int64
+	Input, Output, CacheRead, CacheWrite, CacheWrite1h int64
 }
 
 // Table maps "type/model" to a price.
@@ -43,10 +43,11 @@ func mustParse(b []byte) *Table {
 }
 
 type entry struct {
-	Input      string `yaml:"input"`
-	Output     string `yaml:"output"`
-	CacheRead  string `yaml:"cache_read"`
-	CacheWrite string `yaml:"cache_write"`
+	Input        string `yaml:"input"`
+	Output       string `yaml:"output"`
+	CacheRead    string `yaml:"cache_read"`
+	CacheWrite   string `yaml:"cache_write"`
+	CacheWrite1h string `yaml:"cache_write_1h"`
 }
 
 // Parse reads a price file of USD strings per million tokens.
@@ -66,7 +67,7 @@ func Parse(data []byte) (*Table, error) {
 		for _, f := range []struct {
 			s   string
 			dst *int64
-		}{{e.Input, &p.Input}, {e.Output, &p.Output}, {e.CacheRead, &p.CacheRead}, {e.CacheWrite, &p.CacheWrite}} {
+		}{{e.Input, &p.Input}, {e.Output, &p.Output}, {e.CacheRead, &p.CacheRead}, {e.CacheWrite, &p.CacheWrite}, {e.CacheWrite1h, &p.CacheWrite1h}} {
 			if f.s == "" {
 				continue
 			}
@@ -81,12 +82,32 @@ func Parse(data []byte) (*Table, error) {
 	return t, nil
 }
 
+// maxTokens caps each count before pricing; no call comes near it.
+const maxTokens = int64(1) << 40
+
 // Cost returns the cost of u in nano-USD. priced is false when the model has no entry.
 func (t *Table) Cost(typ, model string, u schema.Usage) (nusd int64, priced bool) {
 	p, ok := t.prices[typ+"/"+model]
 	if !ok {
 		return 0, false
 	}
-	sum := u.InputTokens*p.Input + u.OutputTokens*p.Output + u.CacheReadTokens*p.CacheRead + u.CacheWriteTokens*p.CacheWrite
-	return (sum + 500_000) / 1_000_000, true
+	oneHour := p.CacheWrite1h
+	if oneHour == 0 {
+		oneHour = p.CacheWrite
+	}
+	var whole, rest int64
+	for _, term := range [][2]int64{
+		{u.InputTokens, p.Input},
+		{u.OutputTokens + u.ReasoningTokens, p.Output},
+		{u.CacheReadTokens, p.CacheRead},
+		{u.CacheWriteTokens - u.CacheWrite1hTokens, p.CacheWrite},
+		{u.CacheWrite1hTokens, oneHour},
+	} {
+		// Split each count into millions and the rest, so tokens times a price per million
+		// cannot overflow for any count a provider could report.
+		n := min(max(term[0], 0), maxTokens)
+		whole += n / 1_000_000 * term[1]
+		rest += n % 1_000_000 * term[1]
+	}
+	return whole + (rest+500_000)/1_000_000, true
 }

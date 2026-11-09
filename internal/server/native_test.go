@@ -135,3 +135,28 @@ func TestFreeTargetCostsNothing(t *testing.T) {
 		t.Fatalf("record %+v", r)
 	}
 }
+
+func TestReasoningHeader(t *testing.T) {
+	up := upstream(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"x"}}],"usage":{"prompt_tokens":10,"completion_tokens":100,"completion_tokens_details":{"reasoning_tokens":60}}}`)
+	})
+	e := setupRoutes(t, []router.Route{openaiRoute("*", "", up)})
+	res := e.post(t, ping)
+	if res.header.Get("X-Usage-Reasoning-Tokens") != "60" || res.header.Get("X-Usage-Output-Tokens") != "40" {
+		t.Fatalf("headers %v", res.header)
+	}
+	if r := e.usage(t)[0]; r.ReasoningTokens != 60 || r.OutputTokens != 40 {
+		t.Fatalf("record %+v", r)
+	}
+}
+
+func TestEstimatedThaiIsNotUndercounted(t *testing.T) {
+	up := upstream(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"สวัสดีครับ"}}]}`)
+	})
+	e := setupRoutes(t, []router.Route{openaiRoute("*", "", up)})
+	e.post(t, `{"model":"m","messages":[{"role":"user","content":"สวัสดีครับวันนี้"}]}`)
+	if r := e.usage(t)[0]; !r.Estimated || r.InputTokens < 16 || r.OutputTokens < 10 {
+		t.Fatalf("record %+v", r)
+	}
+}

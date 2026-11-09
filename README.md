@@ -177,6 +177,44 @@ ANTHROPIC_BASE_URL=http://localhost:8080 ANTHROPIC_AUTH_TOKEN=$TRANSPONDER_KEY c
 
 Fallback to the next target and the admin API are on the roadmap below.
 
+### Limits
+
+Budgets cap what a user, a team or a key spends in USD, per UTC day or month. Profiles, in the same format as the other mothership projects, cap tokens and requests:
+
+Until sign-in with OIDC lands, the caller is the API key: each key counts as `user:<key name>` as well as `key:<key name>`, so name keys after the people or services that hold them.
+
+```yaml
+budgets:
+  - {subject: "user:*", period: monthly, limit_usd: 20}       # every user without a rule of their own
+  - {subject: "user:alice@example.com", period: monthly, limit_usd: 100}
+  - {subject: "team:platform", period: daily, limit_usd: 50}
+  - {subject: "key:ci", period: monthly, limit_usd: 10}
+
+default_profile: free
+profiles:
+  - name: free
+    limits:
+      requests:   {rate: 60/m, concurrency: 4}
+      llm.tokens: {rate: 20000/m, per_day: 100000, per_month: 2000000}
+      llm.cost_usd: {per_month: 5}
+      llm.max_input_tokens: 8192
+      llm.max_output_tokens: 2048
+      llm.max_reasoning_tokens: 4096
+  - name: pro
+    limits:
+      llm.tokens: {per_day: 2000000}
+profile_bindings:
+  - {subject: "user:alice@example.com", profile: pro}   # key:, user: or team:, in that order
+# profiles_file: /etc/mothership/profiles.yaml          # or share one file with the other projects
+```
+
+- `llm.tokens` counts input, output and reasoning tokens together. Reasoning tokens are counted apart where the provider reports them (OpenAI, Gemini) and come back in `X-Usage-Reasoning-Tokens`. Where a provider reports no usage, tokens are estimated on the high side: four characters a token for ASCII, one and a half tokens for every other character.
+- A call reserves its estimated input, its output limit (4096 tokens when it sets none and no profile cap applies) and their cost before it runs, and settles to the real usage after. A failed call gives the reservation back. A plain call the client abandons keeps its reservation, since the provider may still bill the work; an abandoned stream settles to what it streamed. A kept reservation lives in memory only and is not rebuilt after a restart.
+- An exact `user:<id>` budget replaces `user:*` for its own period only, so a larger monthly budget for one user keeps the daily `user:*` cap.
+- `llm.max_output_tokens` lowers `max_tokens` or `max_completion_tokens`, never raises them. `llm.max_reasoning_tokens` lowers Anthropic's thinking budget, which is also kept under `max_tokens` and dropped when that leaves less than Anthropic's minimum of 1024. OpenAI and Gemini chat requests get no separate reasoning cap; for OpenAI, `max_completion_tokens` bounds reasoning and output together. A prompt over `llm.max_input_tokens` gets 400 `input_too_large`.
+- A spent budget is 402 `budget_exceeded`, a spent token allowance 402 `quota_exceeded`, a rate 429 `rate_limited` with `Retry-After`, too many calls at once 429 `concurrency_limited`. OpenAI-dialect callers get these as `error.code`; Anthropic-dialect callers get Anthropic's `error.type` (`billing_error`, `rate_limit_error`, `invalid_request_error`) with the same code in `error.code`. Responses carry `RateLimit-Policy` and `RateLimit` headers for the rates that apply.
+- Counters live in memory and are rebuilt from the usage table at start, so a restart keeps this month's recorded spend. A limit can be passed only by calls already in flight whose real usage turns out larger than their reservation, and by kept reservations lost in a restart. With several replicas each keeps its own counters until the shared store lands.
+
 ## Roadmap
 
 Each milestone ships as a release when it lands:
@@ -185,12 +223,12 @@ Each milestone ships as a release when it lands:
 2. Released in v0.1.0. OpenAI and Ollama adapters, streaming, embeddings
 3. Released in v0.2.0. Provider registry, split timeouts, `GET /v1/models`
 4. Released in v0.2.2. Anthropic API in and out, the Gemini adapter, translation between dialects, Claude Code working
-5. Budgets, token limits and request rate limits (v0.2.3)
+5. Released in v0.2.3. Budgets, token limits and request limits
 6. Fallback with a cooldown, access per route (v0.2.4)
 7. OIDC and roles, the admin API with OpenAPI and an audit log, Postgres and several replicas
 8. Metrics, tracing and a five-minute demo
 
-After that: the OpenAI Responses API, per-user request rate limits, organisations, Bedrock and Vertex, and caching.
+After that: the OpenAI Responses API, a shared counter store for several replicas, organisations, Bedrock and Vertex, and caching.
 
 ## How to help
 

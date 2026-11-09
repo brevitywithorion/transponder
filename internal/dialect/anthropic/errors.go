@@ -13,6 +13,8 @@ type wireError struct {
 type wireErrorDetail struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
+	// Code is transponder's own reason, such as budget_exceeded, next to Anthropic's type.
+	Code string `json:"code,omitempty"`
 }
 
 // ErrorType returns the Anthropic error type for an HTTP status.
@@ -22,6 +24,8 @@ func ErrorType(status int) string {
 		return "invalid_request_error"
 	case http.StatusUnauthorized:
 		return "authentication_error"
+	case http.StatusPaymentRequired:
+		return "billing_error"
 	case http.StatusForbidden:
 		return "permission_error"
 	case http.StatusNotFound:
@@ -39,7 +43,13 @@ func ErrorType(status int) string {
 
 // WriteError answers with an error in the Anthropic shape.
 func WriteError(w http.ResponseWriter, status int, errType, message string) {
-	b, _ := json.Marshal(wireError{Type: "error", Error: wireErrorDetail{Type: errType, Message: message}})
+	WriteErrorCode(w, status, errType, "", message)
+}
+
+// WriteErrorCode answers with an error in the Anthropic shape that also names transponder's
+// code, so clients can tell a spent budget from a provider's billing problem.
+func WriteErrorCode(w http.ResponseWriter, status int, errType, code, message string) {
+	b, _ := json.Marshal(wireError{Type: "error", Error: wireErrorDetail{Type: errType, Message: message, Code: code}})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(b) //nolint:gosec // JSON we encoded, served as application/json
