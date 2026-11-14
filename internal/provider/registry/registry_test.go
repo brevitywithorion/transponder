@@ -20,6 +20,7 @@ func TestLookup(t *testing.T) {
 		{typ: "openrouter"},
 		{typ: "xai"},
 		{typ: "vercel"},
+		{typ: "siliconflow"},
 		{typ: "anthropic"},
 		{typ: "gemini"},
 		{typ: "vllm", free: true},
