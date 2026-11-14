@@ -3,7 +3,10 @@ package router
 import (
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/raven-clown/transponder/internal/provider/echo"
 )
@@ -86,5 +89,95 @@ func TestModels(t *testing.T) {
 	}
 	if got := New([]Route{{Match: "*", Targets: []Target{{Provider: e}}}}).Models(); len(got) != 0 {
 		t.Fatalf("catch-all lists %v", got)
+	}
+}
+
+func planNames(p Plan) string {
+	var out []string
+	for _, t := range p.Targets {
+		out = append(out, t.Provider.Name()+"/"+t.Model)
+	}
+	return strings.Join(out, " ")
+}
+
+func TestPlan(t *testing.T) {
+	a, b, c := echo.New("a"), echo.New("b"), echo.New("c")
+	r := New([]Route{{Match: "claude-*", Targets: []Target{
+		{Provider: a, Type: "anthropic"},
+		{Provider: b, Type: "openai", Model: "gpt-5", Free: true},
+		{Provider: c, Type: "ollama", Model: "qwen3:8b"},
+	}}})
+	p, err := r.Plan("claude-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Route != "claude-*" || planNames(p) != "a/claude-x b/gpt-5 c/qwen3:8b" || !p.Targets[1].Free || p.Targets[1].Type != "openai" || p.Targets[2].Route != "claude-*" {
+		t.Fatalf("plan %+v", p)
+	}
+	if _, err := r.Plan("other"); !errors.Is(err, ErrNoRoute) {
+		t.Fatalf("err = %v", err)
+	}
+	first, _ := r.Resolve("claude-x")
+	if first.Provider.Name() != "a" {
+		t.Fatalf("Resolve = %+v", first)
+	}
+}
+
+func TestCooldown(t *testing.T) {
+	a, b := echo.New("a"), echo.New("b")
+	now := time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC)
+	r := New([]Route{{Match: "*", Targets: []Target{{Provider: a}, {Provider: b}}}})
+	r.SetCooldown(3, 30*time.Second, func() time.Time { return now })
+	plan := func() Plan { p, _ := r.Plan("m"); return p }
+	primary := plan().Targets[0]
+
+	r.Report(primary, false)
+	r.Report(primary, false)
+	if planNames(plan()) != "a/m b/m" {
+		t.Fatalf("cooled after two failures: %s", planNames(plan()))
+	}
+	r.Report(primary, true)
+	r.Report(primary, false)
+	r.Report(primary, false)
+	if planNames(plan()) != "a/m b/m" {
+		t.Fatalf("a success did not clear the count: %s", planNames(plan()))
+	}
+	r.Report(primary, false)
+	if planNames(plan()) != "b/m a/m" {
+		t.Fatalf("not cooled after three failures in a row: %s", planNames(plan()))
+	}
+	now = now.Add(31 * time.Second)
+	if planNames(plan()) != "a/m b/m" {
+		t.Fatalf("still cooled after the cooldown: %s", planNames(plan()))
+	}
+	r.Report(primary, false)
+	if planNames(plan()) != "b/m a/m" {
+		t.Fatalf("one more failure after the cooldown did not trip it again: %s", planNames(plan()))
+	}
+	r.Report(primary, true)
+	if planNames(plan()) != "a/m b/m" {
+		t.Fatalf("a success did not end the cooldown: %s", planNames(plan()))
+	}
+	other, _ := New([]Route{{Match: "*", Targets: []Target{{Provider: a, Model: "x"}}}}).Plan("m")
+	r.Report(other.Targets[0], false)
+}
+
+func TestHealthIsBounded(t *testing.T) {
+	a := echo.New("a")
+	now := time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC)
+	r := New([]Route{{Match: "*", Targets: []Target{{Provider: a}}}})
+	r.SetCooldown(3, 30*time.Second, func() time.Time { return now })
+	cooled := Resolved{Provider: a, Model: "kept"}
+	for range 3 {
+		r.Report(cooled, false)
+	}
+	for i := range 5000 {
+		r.Report(Resolved{Provider: a, Model: "made-up-" + strconv.Itoa(i)}, false)
+	}
+	if n := len(r.health); n > maxHealth+1 {
+		t.Fatalf("%d health entries kept", n)
+	}
+	if h, ok := r.health[healthKey(cooled)]; !ok || !now.Before(h.until) {
+		t.Fatal("a target in cooldown was swept")
 	}
 }

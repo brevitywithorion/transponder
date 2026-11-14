@@ -1,6 +1,8 @@
 package openai
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,9 +34,12 @@ func EncodeChatRequestWith(req *schema.ChatRequest, o EncodeOptions) ([]byte, er
 		w.StreamOptions = &wireStreamOptions{IncludeUsage: true}
 	}
 	for _, m := range req.Messages {
-		wm := wireMessage{Role: m.Role, ToolCallID: m.ToolCallID}
+		wm := wireMessage{Role: m.Role, ToolCallID: upstreamID(m.ToolCallID)}
 		if len(m.ToolCalls) > 0 {
 			wm.ToolCalls = encodeToolCalls(m.ToolCalls)
+			for i := range wm.ToolCalls {
+				wm.ToolCalls[i].ID = upstreamID(wm.ToolCalls[i].ID)
+			}
 		}
 		if m.Content == "" && len(m.ToolCalls) > 0 {
 			wm.Content = json.RawMessage("null")
@@ -209,4 +214,75 @@ func DecodeEmbedResponse(body []byte) (*schema.EmbedResponse, error) {
 		resp.Usage = w.Usage.canonical()
 	}
 	return resp, nil
+}
+
+// maxToolCallID is the longest tool call id OpenAI accepts.
+const maxToolCallID = 40
+
+// upstreamID shortens a tool call id made by another provider, such as Gemini's, which carries a
+// signature, to one OpenAI accepts. The same id always gets the same short form, so a call and
+// its result still match.
+func upstreamID(id string) string {
+	if len(id) <= maxToolCallID {
+		return id
+	}
+	sum := sha256.Sum256([]byte(id))
+	return "call_" + hex.EncodeToString(sum[:16])
+}
+
+// ShortenToolCallIDs rewrites the tool call ids of a raw chat request that are too long for
+// OpenAI, the same way EncodeChatRequest does. A body with none comes back untouched.
+func ShortenToolCallIDs(body []byte) []byte {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(body, &top) != nil {
+		return body
+	}
+	var msgs []map[string]json.RawMessage
+	if json.Unmarshal(top["messages"], &msgs) != nil {
+		return body
+	}
+	changed := false
+	short := func(raw json.RawMessage) (json.RawMessage, bool) {
+		var id string
+		if json.Unmarshal(raw, &id) != nil || len(id) <= maxToolCallID {
+			return raw, false
+		}
+		b, _ := json.Marshal(upstreamID(id))
+		return b, true
+	}
+	for _, m := range msgs {
+		if raw, ok := m["tool_call_id"]; ok {
+			if id, did := short(raw); did {
+				m["tool_call_id"], changed = id, true
+			}
+		}
+		var calls []map[string]json.RawMessage
+		if json.Unmarshal(m["tool_calls"], &calls) != nil {
+			continue
+		}
+		edited := false
+		for _, call := range calls {
+			if id, did := short(call["id"]); did {
+				call["id"], edited = id, true
+			}
+		}
+		if edited {
+			if b, err := json.Marshal(calls); err == nil {
+				m["tool_calls"], changed = b, true
+			}
+		}
+	}
+	if !changed {
+		return body
+	}
+	b, err := json.Marshal(msgs)
+	if err != nil {
+		return body
+	}
+	top["messages"] = b
+	out, err := json.Marshal(top)
+	if err != nil {
+		return body
+	}
+	return out
 }
