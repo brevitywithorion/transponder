@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- Z.ai (Zhipu GLM) provider (`type: zai`) defaulting to `https://api.z.ai/api/paas/v4` and sending `api_key` as a bearer token. Chat is `POST /chat/completions` on that base, so the path ends in `/v4/chat/completions`. A `base_url` still overrides that default. The China host is `https://open.bigmodel.cn/api/paas/v4`. No prices are included, so calls are logged as unpriced.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added

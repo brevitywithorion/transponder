@@ -258,6 +258,14 @@ func TestBuildRouter(t *testing.T) {
 			},
 			model: "anthropic/claude-opus-5", provider: "v", typ: "vercel", upstream: "anthropic/claude-opus-5",
 		},
+		{
+			name: "zai route",
+			cfg: config.Bootstrap{
+				Providers: []config.Provider{{Name: "zai", Type: "zai", APIKey: "k"}},
+				Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "zai"}}}},
+			},
+			model: "m", provider: "zai", typ: "zai", upstream: "m",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -373,6 +381,42 @@ func TestBuildRouterVercelBaseURLOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := r.Resolve("anthropic/claude-opus-5")
+	a, ok := got.Provider.(interface{ BaseURL() string })
+	if !ok || a.BaseURL() != custom {
+		t.Fatalf("provider %T", got.Provider)
+	}
+}
+
+func TestBuildRouterZaiDefault(t *testing.T) {
+	cfg := &config.Bootstrap{
+		Providers: []config.Provider{{Name: "zai", Type: "zai", APIKey: "k"}},
+		Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "zai"}}}},
+	}
+	r, err := buildRouter(cfg, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Resolve("m")
+	a, ok := got.Provider.(interface{ BaseURL() string })
+	if !ok {
+		t.Fatalf("provider %T", got.Provider)
+	}
+	if a.BaseURL() != "https://api.z.ai/api/paas/v4" || got.Free {
+		t.Fatalf("base %q free=%v", a.BaseURL(), got.Free)
+	}
+}
+
+func TestBuildRouterZaiBaseURLOverride(t *testing.T) {
+	const custom = "https://gateway.example/api/paas/v4"
+	cfg := &config.Bootstrap{
+		Providers: []config.Provider{{Name: "zai", Type: "zai", BaseURL: custom, APIKey: "k"}},
+		Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "zai"}}}},
+	}
+	r, err := buildRouter(cfg, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Resolve("m")
 	a, ok := got.Provider.(interface{ BaseURL() string })
 	if !ok || a.BaseURL() != custom {
 		t.Fatalf("provider %T", got.Provider)

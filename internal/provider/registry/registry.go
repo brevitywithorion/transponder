@@ -19,6 +19,7 @@ import (
 	"github.com/raven-clown/transponder/internal/provider/vercel"
 	"github.com/raven-clown/transponder/internal/provider/vllm"
 	"github.com/raven-clown/transponder/internal/provider/xai"
+	"github.com/raven-clown/transponder/internal/provider/zai"
 )
 
 // Settings are the values a provider is built from.
@@ -65,6 +66,9 @@ var specs = []Spec{
 	}},
 	{Type: "vercel", New: func(s Settings) provider.Provider {
 		return vercel.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "zai", New: func(s Settings) provider.Provider {
+		return zai.New(s.Name, s.BaseURL, s.APIKey, s.Client)
 	}},
 	{Type: "vllm", Free: true, New: func(s Settings) provider.Provider {
 		return vllm.New(s.Name, s.BaseURL, s.APIKey, s.Client)

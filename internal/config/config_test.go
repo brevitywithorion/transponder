@@ -170,6 +170,36 @@ routes:
 	}
 }
 
+func TestLoadZai(t *testing.T) {
+	p := writeFile(t, `providers:
+  - name: zai
+    type: zai
+    api_key: ${ZAI_API_KEY}
+  - name: custom
+    type: zai
+    api_key: ${ZAI_API_KEY}
+    base_url: https://gateway.example/api/paas/v4
+routes:
+  - match: "zai-*"
+    targets:
+      - provider: zai
+  - match: "custom/*"
+    targets:
+      - provider: custom
+`)
+	c, err := Load(p, []string{"ZAI_API_KEY=k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Provider{
+		{Name: "zai", Type: "zai", APIKey: "k"},
+		{Name: "custom", Type: "zai", BaseURL: "https://gateway.example/api/paas/v4", APIKey: "k"},
+	}
+	if !reflect.DeepEqual(c.Providers, want) {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
 func TestLoadXAI(t *testing.T) {
 	p := writeFile(t, `providers:
   - name: xai
