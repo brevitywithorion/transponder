@@ -503,6 +503,7 @@ func TestServeRecordsOpenStreamOnShutdown(t *testing.T) {
 		t.Fatalf("records %+v", recs)
 	}
 }
+
 func TestStopOnContextDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	called := make(chan struct{}, 1)
