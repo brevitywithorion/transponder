@@ -170,6 +170,36 @@ routes:
 	}
 }
 
+func TestLoadMoonshot(t *testing.T) {
+	p := writeFile(t, `providers:
+  - name: moonshot
+    type: moonshot
+    api_key: ${MOONSHOT_API_KEY}
+  - name: custom
+    type: moonshot
+    api_key: ${MOONSHOT_API_KEY}
+    base_url: https://gateway.example/v1
+routes:
+  - match: "moonshot-*"
+    targets:
+      - provider: moonshot
+  - match: "custom/*"
+    targets:
+      - provider: custom
+`)
+	c, err := Load(p, []string{"MOONSHOT_API_KEY=k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Provider{
+		{Name: "moonshot", Type: "moonshot", APIKey: "k"},
+		{Name: "custom", Type: "moonshot", BaseURL: "https://gateway.example/v1", APIKey: "k"},
+	}
+	if !reflect.DeepEqual(c.Providers, want) {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
 func TestLoadXAI(t *testing.T) {
 	p := writeFile(t, `providers:
   - name: xai
