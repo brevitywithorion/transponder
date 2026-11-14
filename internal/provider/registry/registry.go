@@ -8,6 +8,7 @@ import (
 
 	"github.com/raven-clown/transponder/internal/provider"
 	"github.com/raven-clown/transponder/internal/provider/anthropic"
+	"github.com/raven-clown/transponder/internal/provider/cerebras"
 	"github.com/raven-clown/transponder/internal/provider/cloudflare"
 	"github.com/raven-clown/transponder/internal/provider/echo"
 	"github.com/raven-clown/transponder/internal/provider/gemini"
@@ -65,6 +66,9 @@ var specs = []Spec{
 	}},
 	{Type: "vercel", New: func(s Settings) provider.Provider {
 		return vercel.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "cerebras", New: func(s Settings) provider.Provider {
+		return cerebras.New(s.Name, s.BaseURL, s.APIKey, s.Client)
 	}},
 	{Type: "vllm", Free: true, New: func(s Settings) provider.Provider {
 		return vllm.New(s.Name, s.BaseURL, s.APIKey, s.Client)
