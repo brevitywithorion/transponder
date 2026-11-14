@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- Mistral AI provider (`type: mistral`) defaulting to `https://api.mistral.ai/v1` and sending `api_key` as a bearer token. Chat and embeddings (`mistral-embed`) share that base URL. A `base_url` still overrides that default. No prices are included, so calls are logged as unpriced.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added
