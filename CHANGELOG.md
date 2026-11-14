@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- DeepSeek provider (`type: deepseek`) defaulting to `https://api.deepseek.com` and sending `api_key` as a bearer token. Chat is `POST /chat/completions` on that host, with no `/v1`. A `base_url` still overrides that default. DeepSeek has no embeddings endpoint. No prices are included, so calls are logged as unpriced.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added
