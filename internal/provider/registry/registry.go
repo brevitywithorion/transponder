@@ -13,6 +13,7 @@ import (
 	"github.com/raven-clown/transponder/internal/provider/gemini"
 	"github.com/raven-clown/transponder/internal/provider/litellm"
 	"github.com/raven-clown/transponder/internal/provider/llamacpp"
+	"github.com/raven-clown/transponder/internal/provider/lmstudio"
 	"github.com/raven-clown/transponder/internal/provider/ollama"
 	"github.com/raven-clown/transponder/internal/provider/openai"
 	"github.com/raven-clown/transponder/internal/provider/openrouter"
@@ -71,6 +72,9 @@ var specs = []Spec{
 	}},
 	{Type: "llamacpp", Free: true, New: func(s Settings) provider.Provider {
 		return llamacpp.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "lmstudio", Free: true, New: func(s Settings) provider.Provider {
+		return lmstudio.New(s.Name, s.BaseURL, s.APIKey, s.Client)
 	}},
 }
 

@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- LM Studio provider (`type: lmstudio`) defaulting to `http://localhost:1234/v1`. `api_key` is optional and, when set, is sent as a bearer token. Targets using `lmstudio` count as free in usage costs.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added
