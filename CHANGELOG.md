@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- `transponder --config-test` checks a config file, or the built-in defaults when `--config` is omitted, then exits. It prints `transponder: config ok` when the config is valid. It opens no port and no database.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added

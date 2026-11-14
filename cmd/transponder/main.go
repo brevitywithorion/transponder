@@ -72,6 +72,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	configPath := fs.String("config", "", "path to the YAML config file")
+	configTest := fs.Bool("config-test", false, "check the config and exit without starting")
 	checkUpdate := fs.Bool("check-update", false, "list newer releases, how urgent they are and which changes touch this config, then exit")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -83,6 +84,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		info, ok := readBuildInfo()
 		_, _ = fmt.Fprintln(stdout, versionString(version, info, ok))
 		return 0
+	}
+	if *configTest {
+		return runConfigTest(*configPath, stdout, stderr)
 	}
 	cfg, err := config.Load(*configPath, os.Environ())
 	if err != nil {
@@ -107,6 +111,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 func stopOnContextDone(ctx context.Context, stop context.CancelFunc) {
 	<-ctx.Done()
 	stop()
+}
+
+// runConfigTest checks the config without serving. A pipeline can run it before
+// a deploy, and it must not open a port or a database while it does.
+func runConfigTest(path string, stdout, stderr io.Writer) int {
+	cfg, err := config.Load(path, os.Environ())
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "transponder: %v\n", err)
+		return 1
+	}
+	if _, err := buildRouter(cfg, &http.Client{}); err != nil {
+		_, _ = fmt.Fprintf(stderr, "transponder: %v\n", err)
+		return 1
+	}
+	_, _ = fmt.Fprintln(stdout, "transponder: config ok")
+	return 0
 }
 
 func serve(ctx context.Context, cfg *config.Bootstrap, ln net.Listener, stdout, stderr io.Writer) error {

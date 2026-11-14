@@ -173,6 +173,14 @@ routes:
 transponder --config transponder.yaml
 ```
 
+Check the file without starting the server:
+
+```shell
+transponder --config-test --config transponder.yaml
+```
+
+It loads the file with environment substitution and `TRANSPONDER_` overrides, validates it and builds the router. When the config is valid it prints `transponder: config ok` and exits 0. Otherwise it prints the error and exits 1. It opens no port and no database. Without `--config` it checks the built-in defaults.
+
 ```shell
 curl localhost:8080/v1/chat/completions \
   -H "Authorization: Bearer $TRANSPONDER_KEY" \

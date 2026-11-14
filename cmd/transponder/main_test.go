@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -105,6 +106,92 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigTest(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	valid := writeConfig(t, `
+providers:
+  - name: local
+    type: ollama
+routes:
+  - match: "*"
+    targets:
+      - provider: local
+store:
+  sqlite: transponder.db
+`)
+	unknown := writeConfig(t, `
+providers:
+  - name: x
+    type: nope
+routes:
+  - match: "*"
+    targets:
+      - provider: x
+`)
+	missing := writeConfig(t, `
+providers:
+  - name: local
+    type: ollama
+routes:
+  - match: "*"
+    targets:
+      - provider: missing
+`)
+	tests := []struct {
+		name       string
+		args       []string
+		level      string
+		wantCode   int
+		wantStdout string
+		wantStderr string
+	}{
+		{name: "valid config", args: []string{"--config-test", "--config", valid}, wantCode: 0, wantStdout: "transponder: config ok\n"},
+		{name: "built-in defaults", args: []string{"--config-test"}, wantCode: 0, wantStdout: "transponder: config ok\n"},
+		{name: "unknown provider type", args: []string{"--config-test", "--config", unknown}, wantCode: 1, wantStderr: "unknown type"},
+		{name: "route pointing at a missing provider", args: []string{"--config-test", "--config", missing}, wantCode: 1, wantStderr: "not declared"},
+		{name: "bad env override", args: []string{"--config-test", "--config", valid}, level: "loud", wantCode: 1, wantStderr: "loud"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.level != "" {
+				t.Setenv("TRANSPONDER_LOG_LEVEL", tt.level)
+			}
+			var stdout, stderr bytes.Buffer
+			code := run(tt.args, &stdout, &stderr)
+			if code != tt.wantCode {
+				t.Fatalf("exit code = %d, want %d (stdout: %s stderr: %s)", code, tt.wantCode, stdout.String(), stderr.String())
+			}
+			if tt.wantStdout != "" && stdout.String() != tt.wantStdout {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), tt.wantStdout)
+			}
+			if tt.wantCode != 0 && stdout.String() != "" {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
+			}
+			if tt.wantStderr != "" {
+				if !strings.HasPrefix(stderr.String(), "transponder: ") || !strings.Contains(stderr.String(), tt.wantStderr) {
+					t.Fatalf("stderr = %q, want it to contain %q", stderr.String(), tt.wantStderr)
+				}
+			}
+			if tt.wantCode == 0 && stderr.String() != "" {
+				t.Fatalf("stderr = %q, want empty", stderr.String())
+			}
+			if _, err := os.Stat("transponder.db"); !os.IsNotExist(err) {
+				t.Fatalf("transponder.db created: %v", err)
+			}
+		})
+	}
+}
+
+func writeConfig(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "transponder.yaml")
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(body)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestServeRejectsPostgres(t *testing.T) {
