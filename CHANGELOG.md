@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- Groq provider (`type: groq`) defaulting to `https://api.groq.com/openai/v1` and sending `api_key` as a bearer token. A `base_url` still overrides that default. No prices are included, so calls are logged as unpriced.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added
