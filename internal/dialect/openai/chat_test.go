@@ -32,6 +32,7 @@ func TestDecodeChatRequestErrors(t *testing.T) {
 		{name: "missing model", body: `{"messages":[{"role":"user","content":"x"}]}`, param: "model", code: "missing_field"},
 		{name: "empty messages", body: `{"model":"m","messages":[]}`, param: "messages", code: "missing_field"},
 		{name: "content parts", body: `{"model":"m","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"x"}}]}]}`, param: "messages", code: "unsupported"},
+		{name: "content is a number", body: `{"model":"m","messages":[{"role":"user","content":42}]}`, param: "messages", code: "unsupported"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -42,6 +43,28 @@ func TestDecodeChatRequestErrors(t *testing.T) {
 			}
 			if re.Param != tt.param || re.Code != tt.code {
 				t.Fatalf("param %q code %q, want %q %q", re.Param, re.Code, tt.param, tt.code)
+			}
+		})
+	}
+}
+
+func TestDecodeChatRequestTextContent(t *testing.T) {
+	tests := []struct {
+		name, body, want string
+	}{
+		{name: "one text part", body: `{"model":"m","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`, want: "hello"},
+		{name: "several text parts", body: `{"model":"m","messages":[{"role":"user","content":[{"type":"text","text":"one"},{"type":"text","text":"two"}]}]}`, want: "onetwo"},
+		{name: "empty array", body: `{"model":"m","messages":[{"role":"user","content":[]}]}`, want: ""},
+		{name: "text part without text", body: `{"model":"m","messages":[{"role":"user","content":[{"type":"text"}]}]}`, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := DecodeChatRequest(strings.NewReader(tt.body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(req.Messages) != 1 || req.Messages[0].Content != tt.want {
+				t.Fatalf("content = %#v, want %q", req.Messages, tt.want)
 			}
 		})
 	}
