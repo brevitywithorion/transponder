@@ -170,6 +170,36 @@ routes:
 	}
 }
 
+func TestLoadTogether(t *testing.T) {
+	p := writeFile(t, `providers:
+  - name: together
+    type: together
+    api_key: ${TOGETHER_API_KEY}
+  - name: custom
+    type: together
+    api_key: ${TOGETHER_API_KEY}
+    base_url: https://gateway.example/v1
+routes:
+  - match: "together-*"
+    targets:
+      - provider: together
+  - match: "custom/*"
+    targets:
+      - provider: custom
+`)
+	c, err := Load(p, []string{"TOGETHER_API_KEY=k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Provider{
+		{Name: "together", Type: "together", APIKey: "k"},
+		{Name: "custom", Type: "together", BaseURL: "https://gateway.example/v1", APIKey: "k"},
+	}
+	if !reflect.DeepEqual(c.Providers, want) {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
 func TestLoadXAI(t *testing.T) {
 	p := writeFile(t, `providers:
   - name: xai

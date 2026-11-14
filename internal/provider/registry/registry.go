@@ -16,6 +16,7 @@ import (
 	"github.com/raven-clown/transponder/internal/provider/ollama"
 	"github.com/raven-clown/transponder/internal/provider/openai"
 	"github.com/raven-clown/transponder/internal/provider/openrouter"
+	"github.com/raven-clown/transponder/internal/provider/together"
 	"github.com/raven-clown/transponder/internal/provider/vercel"
 	"github.com/raven-clown/transponder/internal/provider/vllm"
 	"github.com/raven-clown/transponder/internal/provider/xai"
@@ -65,6 +66,9 @@ var specs = []Spec{
 	}},
 	{Type: "vercel", New: func(s Settings) provider.Provider {
 		return vercel.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "together", New: func(s Settings) provider.Provider {
+		return together.New(s.Name, s.BaseURL, s.APIKey, s.Client)
 	}},
 	{Type: "vllm", Free: true, New: func(s Settings) provider.Provider {
 		return vllm.New(s.Name, s.BaseURL, s.APIKey, s.Client)
