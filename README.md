@@ -164,9 +164,10 @@ routes:
   - match: "anthropic/claude-opus-5"
     targets:
       - provider: vercel
-  - match: "nvidia-*"
+  - match: "nvidia-llama"
     targets:
       - provider: nvidia
+        model: meta/llama-3.1-8b-instruct
   - match: "fast"
     targets:
       - provider: openai
