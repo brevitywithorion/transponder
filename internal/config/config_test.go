@@ -200,6 +200,83 @@ routes:
 	}
 }
 
+func TestLoadSkipsVarsInCommentLines(t *testing.T) {
+	body := `providers:
+  - name: lmstudio
+    type: lmstudio
+    # api_key: ${LMSTUDIO_API_KEY} # enable only when LM Studio requires authentication
+routes:
+  - match: "*"
+    targets:
+      - provider: lmstudio
+`
+	c, err := Load(writeFile(t, body), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Providers) != 1 || c.Providers[0].Name != "lmstudio" || c.Providers[0].APIKey != "" {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
+func TestLoadReadmeExampleWithoutLMStudioKey(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const fence = "```yaml\n"
+	i := strings.Index(string(raw), fence)
+	if i < 0 {
+		t.Fatal("README has no yaml example")
+	}
+	rest := string(raw)[i+len(fence):]
+	j := strings.Index(rest, "```")
+	if j < 0 {
+		t.Fatal("README yaml example is not closed")
+	}
+	body := rest[:j]
+	if !strings.Contains(body, "# api_key: ${LMSTUDIO_API_KEY}") {
+		t.Fatal("README example does not leave the LM Studio api_key commented out")
+	}
+	var environ []string
+	seen := map[string]bool{}
+	scan := body
+	for {
+		k := strings.Index(scan, "${")
+		if k < 0 {
+			break
+		}
+		scan = scan[k+2:]
+		end := strings.IndexByte(scan, '}')
+		if end < 0 {
+			break
+		}
+		name := scan[:end]
+		scan = scan[end+1:]
+		if name == "" || name == "LMSTUDIO_API_KEY" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		environ = append(environ, name+"=test")
+	}
+	c, err := Load(writeFile(t, body), environ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, p := range c.Providers {
+		if p.Name == "lmstudio" {
+			found = true
+			if p.APIKey != "" {
+				t.Fatalf("lmstudio api_key = %q, want empty", p.APIKey)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("example has no lmstudio provider")
+	}
+}
+
 func TestLoadXAI(t *testing.T) {
 	p := writeFile(t, `providers:
   - name: xai

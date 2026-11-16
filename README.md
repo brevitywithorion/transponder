@@ -140,7 +140,7 @@ providers:
     api_key: ${VERCEL_API_KEY}
   - name: lmstudio
     type: lmstudio        # http://localhost:1234/v1 unless base_url is set. api_key is optional
-    api_key: ${LMSTUDIO_API_KEY}
+    # api_key: ${LMSTUDIO_API_KEY} # enable only when LM Studio requires authentication
   - name: cf
     type: cloudflare      # set base_url to your AI Gateway compatibility endpoint
     base_url: https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/compat
