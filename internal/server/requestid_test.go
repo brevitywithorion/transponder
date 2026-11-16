@@ -27,10 +27,11 @@ func TestRequestID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got, during string
+			var got, during, onRequest string
 			h := RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				during = w.Header().Get("X-Request-ID")
 				got = RequestIDFrom(r.Context())
+				onRequest = r.Header.Get("X-Request-ID")
 			}))
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
@@ -38,8 +39,8 @@ func TestRequestID(t *testing.T) {
 				req.Header["X-Request-Id"] = []string{tt.id}
 			}
 			h.ServeHTTP(rec, req)
-			if got == "" || got != during || rec.Header().Get("X-Request-ID") != got {
-				t.Fatalf("context %q during %q response %q", got, during, rec.Header().Get("X-Request-ID"))
+			if got == "" || got != during || rec.Header().Get("X-Request-ID") != got || onRequest != got {
+				t.Fatalf("context %q during %q response %q request %q", got, during, rec.Header().Get("X-Request-ID"), onRequest)
 			}
 			if tt.keep {
 				if got != tt.id {

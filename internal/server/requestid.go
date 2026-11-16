@@ -12,12 +12,14 @@ type requestIDKey struct{}
 // RequestID keeps a caller's X-Request-ID when it is 1 to 128 printable ASCII
 // characters, and generates one otherwise. The id is stored on the request
 // context and set on the response before next runs, so the caller and the
-// handler see the same value.
+// handler see the same value. A generated id is also written onto the request
+// so usage recording and upstream forwarding read the id that was selected.
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
 		if !validRequestID(id) {
 			id = newRequestID()
+			r.Header.Set("X-Request-ID", id)
 		}
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey{}, id)
