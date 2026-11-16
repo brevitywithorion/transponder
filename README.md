@@ -164,9 +164,10 @@ routes:
   - match: "anthropic/claude-opus-5"
     targets:
       - provider: vercel
-  - match: "siliconflow-*"
+  - match: "siliconflow-deepseek-r1"
     targets:
       - provider: siliconflow
+        model: deepseek-ai/DeepSeek-R1
   - match: "fast"
     targets:
       - provider: openai
