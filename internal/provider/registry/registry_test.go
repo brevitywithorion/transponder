@@ -21,6 +21,7 @@ func TestLookup(t *testing.T) {
 		{typ: "xai"},
 		{typ: "vercel"},
 		{typ: "nvidia"},
+		{typ: "mistral"},
 		{typ: "anthropic"},
 		{typ: "gemini"},
 		{typ: "vllm", free: true},
