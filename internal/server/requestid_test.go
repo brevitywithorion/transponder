@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRequestID(t *testing.T) {
@@ -89,4 +90,14 @@ func lowerHex32(s string) bool {
 		}
 	}
 	return true
+}
+
+func TestNewSetsRequestID(t *testing.T) {
+	for _, d := range []Deps{{}, {RequestTimeout: time.Minute}} {
+		rec := httptest.NewRecorder()
+		New(d).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
+		if !lowerHex32(rec.Header().Get("X-Request-ID")) {
+			t.Fatalf("X-Request-ID = %q", rec.Header().Get("X-Request-ID"))
+		}
+	}
 }
