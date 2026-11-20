@@ -164,9 +164,10 @@ providers:
     base_url: https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/compat
     api_key: ${CLOUDFLARE_API_TOKEN}
 routes:
-  - match: "groq-*"
+  - match: "groq-llama"
     targets:
       - provider: groq
+        model: llama-3.3-70b-versatile
   - match: "claude-*"
     targets:
       - provider: claude
