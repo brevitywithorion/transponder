@@ -138,17 +138,8 @@ providers:
   - name: proxy
     type: litellm         # http://localhost:4000/v1 unless base_url is set
   - name: vllm
-  - name: cerebras
-    type: cerebras        # https://api.cerebras.ai/v1 unless base_url is set
-    api_key: ${CEREBRAS_API_KEY}
     type: vllm            # http://localhost:8000/v1 unless base_url is set
-  - name: groq
-    type: groq            # https://api.groq.com/openai/v1 unless base_url is set
-    api_key: ${GROQ_API_KEY}
   - name: llamacpp
-  - name: nvidia
-    type: nvidia          # https://integrate.api.nvidia.com/v1 unless base_url is set. A self-hosted NIM is usually http://localhost:8000/v1
-    api_key: ${NVIDIA_API_KEY}
     type: llamacpp        # http://localhost:8080/v1 unless base_url is set. Note: llama-server listens on :8080 by default, so set base_url (e.g. http://localhost:8081/v1) or pass --port to transponder when running on the same host
     base_url: http://localhost:8081/v1
   - name: router
@@ -163,26 +154,24 @@ providers:
   - name: mistral
     type: mistral         # https://api.mistral.ai/v1 unless base_url is set. Embeddings, including mistral-embed, use the same base URL
     api_key: ${MISTRAL_API_KEY}
+  - name: nvidia
+    type: nvidia          # https://integrate.api.nvidia.com/v1 unless base_url is set. A self-hosted NIM is usually http://localhost:8000/v1
+    api_key: ${NVIDIA_API_KEY}
+  - name: groq
+    type: groq            # https://api.groq.com/openai/v1 unless base_url is set
+    api_key: ${GROQ_API_KEY}
+  - name: cerebras
+    type: cerebras        # https://api.cerebras.ai/v1 unless base_url is set
+    api_key: ${CEREBRAS_API_KEY}
   - name: cf
-  - match: "cerebras-*"
-    targets:
-      - provider: cerebras
     type: cloudflare      # set base_url to your AI Gateway compatibility endpoint
     base_url: https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/compat
     api_key: ${CLOUDFLARE_API_TOKEN}
 routes:
-  - match: "groq-llama"
-    targets:
-      - provider: groq
-        model: llama-3.3-70b-versatile
   - match: "claude-*"
     targets:
       - provider: claude
   - match: "gemini-*"
-  - match: "nvidia-llama"
-    targets:
-      - provider: nvidia
-        model: meta/llama-3.1-8b-instruct
     targets:
       - provider: gemini
   - match: "gpt-*"
@@ -200,6 +189,18 @@ routes:
   - match: "mistral-*"
     targets:
       - provider: mistral
+  - match: "nvidia-llama"
+    targets:
+      - provider: nvidia
+        model: meta/llama-3.1-8b-instruct
+  - match: "groq-llama"
+    targets:
+      - provider: groq
+        model: llama-3.3-70b-versatile
+  - match: "cerebras-gpt-oss"
+    targets:
+      - provider: cerebras
+        model: gpt-oss-120b
   - match: "fast"
     targets:
       - provider: openai
