@@ -164,10 +164,6 @@ providers:
   - name: groq
     type: groq            # https://api.groq.com/openai/v1 unless base_url is set
     api_key: ${GROQ_API_KEY}
-  - match: "siliconflow-deepseek-r1"
-    targets:
-      - provider: siliconflow
-        model: deepseek-ai/DeepSeek-R1
   - name: cerebras
     type: cerebras        # https://api.cerebras.ai/v1 unless base_url is set
     api_key: ${CEREBRAS_API_KEY}
@@ -209,6 +205,10 @@ routes:
     targets:
       - provider: cerebras
         model: gpt-oss-120b
+  - match: "siliconflow-deepseek-r1"
+    targets:
+      - provider: siliconflow
+        model: deepseek-ai/DeepSeek-R1
   - match: "fast"
     targets:
       - provider: openai
