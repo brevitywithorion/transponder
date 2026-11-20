@@ -13,11 +13,14 @@
 
 </div>
 
-An LLM gateway that knows who is spending what. One Go binary in front of Anthropic, OpenAI, Gemini, xAI (Grok), Vercel AI Gateway, Cerebras and Ollama, with fallback across providers, cost per user from your own identity provider, and budgets that hold across replicas. Every feature is free.
+An LLM gateway that knows who is spending what. One Go binary in front of Anthropic, OpenAI, Gemini, xAI (Grok), Vercel AI Gateway, Mistral AI, NVIDIA NIM, Groq, Cerebras and Ollama, with fallback across providers, cost per user from your own identity provider, and budgets that hold across replicas. Every feature is free.
 
 > **Status: early, [v0.2.4](https://github.com/raven-clown/transponder/releases/tag/v0.2.4).** Releases up to v0.2.4 are out: the binary starts with no config, prints an admin key, and serves chat completions (plain and streamed), embeddings and a model list from OpenAI, Ollama, OpenRouter, LiteLLM, Cloudflare AI Gateway or any OpenAI-compatible server, with token counts and cost on every response. Claude Code works through `/v1/messages`, and Anthropic and Gemini are providers. Budgets, token limits and request limits are in, and a route falls back to its next provider when one fails. Sign-in with OIDC and the admin API come next. The design is settled in [docs/design.md](docs/design.md) and the work is tracked in [issues](https://github.com/raven-clown/transponder/issues). Star or watch the repository to follow along, and see [How to help](#how-to-help) if you want to build it with us.
 > xAI (Grok) support is unreleased.
 > Vercel AI Gateway support is unreleased.
+> Mistral AI support is unreleased.
+> NVIDIA NIM support is unreleased.
+> Groq support is unreleased.
 > Cerebras support is unreleased.
 
 ## How it works
@@ -31,7 +34,7 @@ An LLM gateway that knows who is spending what. One Go binary in front of Anthro
 
 - Speaks the OpenAI API (`/v1/chat/completions`, `/v1/embeddings`, `/v1/models`) and the Anthropic API (`/v1/messages`), so the OpenAI and Anthropic SDKs, Claude Code and most tools work with only a base URL change.
 - Serves `/healthz` (the process is up) and `/readyz` (the store answers) without an API key, for liveness and readiness probes.
-- Sends each call to Anthropic, OpenAI, Gemini, xAI (Grok), Vercel AI Gateway, Cerebras or Ollama, and to any OpenAI-compatible server such as vLLM, [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) or LM Studio.
+- Sends each call to Anthropic, OpenAI, Gemini, xAI (Grok), Vercel AI Gateway, Mistral AI, NVIDIA NIM, Groq, Cerebras or Ollama, and to any OpenAI-compatible server such as vLLM, [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) or LM Studio.
 - Falls back to the next provider when one is down, rate limited or out of credit, and skips a provider that keeps failing for a while.
 - Knows the caller from an OIDC token (Okta, Entra, Keycloak, Zitadel, Google, Auth0 and others) or an API key, and records tokens and cost in USD for every call.
 - Puts a daily or monthly budget on a user, a team or a key, and stops the calls once it is spent.
@@ -99,6 +102,16 @@ It lists every release newer than the one running, says how urgent the update is
 
 To get the same news in the logs, set `update_check: true` (or `TRANSPONDER_UPDATE_CHECK=true`). transponder then checks at start and once a day and logs one `update available` line with its urgency, how many releases behind it is and how many changes touch your config. It is off by default, and a failed check is only logged at debug level. You can also watch the repository for releases on GitHub, or let Dependabot or Renovate bump the image tag.
 
+## Configuration test
+
+To check a configuration file for syntax errors, missing variables or bad provider routes without starting the server, opening a port or creating a database file:
+
+```shell
+transponder --config-test --config transponder.yaml
+```
+
+On success it prints `transponder: config ok` and exits 0. On failure it prints the error to stderr and exits 1. Without `--config` it verifies the built-in defaults.
+
 ## Try it
 
 ```shell
@@ -125,8 +138,17 @@ providers:
   - name: proxy
     type: litellm         # http://localhost:4000/v1 unless base_url is set
   - name: vllm
+  - name: cerebras
+    type: cerebras        # https://api.cerebras.ai/v1 unless base_url is set
+    api_key: ${CEREBRAS_API_KEY}
     type: vllm            # http://localhost:8000/v1 unless base_url is set
+  - name: groq
+    type: groq            # https://api.groq.com/openai/v1 unless base_url is set
+    api_key: ${GROQ_API_KEY}
   - name: llamacpp
+  - name: nvidia
+    type: nvidia          # https://integrate.api.nvidia.com/v1 unless base_url is set. A self-hosted NIM is usually http://localhost:8000/v1
+    api_key: ${NVIDIA_API_KEY}
     type: llamacpp        # http://localhost:8080/v1 unless base_url is set. Note: llama-server listens on :8080 by default, so set base_url (e.g. http://localhost:8081/v1) or pass --port to transponder when running on the same host
     base_url: http://localhost:8081/v1
   - name: router
@@ -138,18 +160,29 @@ providers:
   - name: vercel
     type: vercel          # https://ai-gateway.vercel.sh/v1 unless base_url is set
     api_key: ${VERCEL_API_KEY}
-  - name: cerebras
-    type: cerebras        # https://api.cerebras.ai/v1 unless base_url is set
-    api_key: ${CEREBRAS_API_KEY}
+  - name: mistral
+    type: mistral         # https://api.mistral.ai/v1 unless base_url is set. Embeddings, including mistral-embed, use the same base URL
+    api_key: ${MISTRAL_API_KEY}
   - name: cf
+  - match: "cerebras-*"
+    targets:
+      - provider: cerebras
     type: cloudflare      # set base_url to your AI Gateway compatibility endpoint
     base_url: https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/compat
     api_key: ${CLOUDFLARE_API_TOKEN}
 routes:
+  - match: "groq-llama"
+    targets:
+      - provider: groq
+        model: llama-3.3-70b-versatile
   - match: "claude-*"
     targets:
       - provider: claude
   - match: "gemini-*"
+  - match: "nvidia-llama"
+    targets:
+      - provider: nvidia
+        model: meta/llama-3.1-8b-instruct
     targets:
       - provider: gemini
   - match: "gpt-*"
@@ -164,9 +197,9 @@ routes:
   - match: "anthropic/claude-opus-5"
     targets:
       - provider: vercel
-  - match: "cerebras-*"
+  - match: "mistral-*"
     targets:
-      - provider: cerebras
+      - provider: mistral
   - match: "fast"
     targets:
       - provider: openai

@@ -170,6 +170,96 @@ routes:
 	}
 }
 
+func TestLoadMistral(t *testing.T) {
+	p := writeFile(t, `providers:
+  - name: mistral
+    type: mistral
+    api_key: ${MISTRAL_API_KEY}
+  - name: custom
+    type: mistral
+    api_key: ${MISTRAL_API_KEY}
+    base_url: https://gateway.example/v1
+routes:
+  - match: "mistral-*"
+    targets:
+      - provider: mistral
+  - match: "custom/*"
+    targets:
+      - provider: custom
+`)
+	c, err := Load(p, []string{"MISTRAL_API_KEY=k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Provider{
+		{Name: "mistral", Type: "mistral", APIKey: "k"},
+		{Name: "custom", Type: "mistral", BaseURL: "https://gateway.example/v1", APIKey: "k"},
+	}
+	if !reflect.DeepEqual(c.Providers, want) {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
+func TestLoadNvidia(t *testing.T) {
+	p := writeFile(t, `providers:
+  - name: nvidia
+    type: nvidia
+    api_key: ${NVIDIA_API_KEY}
+  - name: custom
+    type: nvidia
+    api_key: ${NVIDIA_API_KEY}
+    base_url: https://gateway.example/v1
+routes:
+  - match: "nvidia-*"
+    targets:
+      - provider: nvidia
+  - match: "custom/*"
+    targets:
+      - provider: custom
+`)
+	c, err := Load(p, []string{"NVIDIA_API_KEY=k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Provider{
+		{Name: "nvidia", Type: "nvidia", APIKey: "k"},
+		{Name: "custom", Type: "nvidia", BaseURL: "https://gateway.example/v1", APIKey: "k"},
+	}
+	if !reflect.DeepEqual(c.Providers, want) {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
+func TestLoadGroq(t *testing.T) {
+	p := writeFile(t, `providers:
+  - name: groq
+    type: groq
+    api_key: ${GROQ_API_KEY}
+  - name: custom
+    type: groq
+    api_key: ${GROQ_API_KEY}
+    base_url: https://gateway.example/openai/v1
+routes:
+  - match: "groq-*"
+    targets:
+      - provider: groq
+  - match: "custom/*"
+    targets:
+      - provider: custom
+`)
+	c, err := Load(p, []string{"GROQ_API_KEY=k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Provider{
+		{Name: "groq", Type: "groq", APIKey: "k"},
+		{Name: "custom", Type: "groq", BaseURL: "https://gateway.example/openai/v1", APIKey: "k"},
+	}
+	if !reflect.DeepEqual(c.Providers, want) {
+		t.Fatalf("providers = %+v", c.Providers)
+	}
+}
+
 func TestLoadCerebras(t *testing.T) {
 	p := writeFile(t, `providers:
   - name: cerebras
