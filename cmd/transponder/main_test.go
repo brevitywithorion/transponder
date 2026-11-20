@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -87,8 +89,10 @@ func TestRun(t *testing.T) {
 		wantStderr string
 	}{
 		{name: "version flag", args: []string{"--version"}, wantCode: 0, wantStdout: "transponder dev"},
+		{name: "config-test defaults", args: []string{"--config-test"}, wantCode: 0, wantStdout: "transponder: config ok"},
 		{name: "unknown flag", args: []string{"--nope"}, wantCode: 2},
 		{name: "missing config file", args: []string{"--config", missing}, wantCode: 1, wantStderr: "nope.yaml"},
+		{name: "config-test missing config file", args: []string{"--config-test", "--config", missing}, wantCode: 1, wantStderr: "nope.yaml"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -259,6 +263,22 @@ func TestBuildRouter(t *testing.T) {
 			model: "anthropic/claude-opus-5", provider: "v", typ: "vercel", upstream: "anthropic/claude-opus-5",
 		},
 		{
+			name: "mistral route",
+			cfg: config.Bootstrap{
+				Providers: []config.Provider{{Name: "mistral", Type: "mistral", APIKey: "k"}},
+				Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "mistral"}}}},
+			},
+			model: "m", provider: "mistral", typ: "mistral", upstream: "m",
+		},
+		{
+			name: "nvidia route",
+			cfg: config.Bootstrap{
+				Providers: []config.Provider{{Name: "nvidia", Type: "nvidia", APIKey: "k"}},
+				Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "nvidia"}}}},
+			},
+			model: "m", provider: "nvidia", typ: "nvidia", upstream: "m",
+		},
+		{
 			name: "groq route",
 			cfg: config.Bootstrap{
 				Providers: []config.Provider{{Name: "groq", Type: "groq", APIKey: "k"}},
@@ -381,6 +401,78 @@ func TestBuildRouterVercelBaseURLOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := r.Resolve("anthropic/claude-opus-5")
+	a, ok := got.Provider.(interface{ BaseURL() string })
+	if !ok || a.BaseURL() != custom {
+		t.Fatalf("provider %T", got.Provider)
+	}
+}
+
+func TestBuildRouterMistralDefault(t *testing.T) {
+	cfg := &config.Bootstrap{
+		Providers: []config.Provider{{Name: "mistral", Type: "mistral", APIKey: "k"}},
+		Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "mistral"}}}},
+	}
+	r, err := buildRouter(cfg, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Resolve("m")
+	a, ok := got.Provider.(interface{ BaseURL() string })
+	if !ok {
+		t.Fatalf("provider %T", got.Provider)
+	}
+	if a.BaseURL() != "https://api.mistral.ai/v1" || got.Free {
+		t.Fatalf("base %q free=%v", a.BaseURL(), got.Free)
+	}
+}
+
+func TestBuildRouterMistralBaseURLOverride(t *testing.T) {
+	const custom = "https://gateway.example/v1"
+	cfg := &config.Bootstrap{
+		Providers: []config.Provider{{Name: "mistral", Type: "mistral", BaseURL: custom, APIKey: "k"}},
+		Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "mistral"}}}},
+	}
+	r, err := buildRouter(cfg, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Resolve("m")
+	a, ok := got.Provider.(interface{ BaseURL() string })
+	if !ok || a.BaseURL() != custom {
+		t.Fatalf("provider %T", got.Provider)
+	}
+}
+
+func TestBuildRouterNvidiaDefault(t *testing.T) {
+	cfg := &config.Bootstrap{
+		Providers: []config.Provider{{Name: "nvidia", Type: "nvidia", APIKey: "k"}},
+		Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "nvidia"}}}},
+	}
+	r, err := buildRouter(cfg, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Resolve("m")
+	a, ok := got.Provider.(interface{ BaseURL() string })
+	if !ok {
+		t.Fatalf("provider %T", got.Provider)
+	}
+	if a.BaseURL() != "https://integrate.api.nvidia.com/v1" || got.Free {
+		t.Fatalf("base %q free=%v", a.BaseURL(), got.Free)
+	}
+}
+
+func TestBuildRouterNvidiaBaseURLOverride(t *testing.T) {
+	const custom = "https://gateway.example/v1"
+	cfg := &config.Bootstrap{
+		Providers: []config.Provider{{Name: "nvidia", Type: "nvidia", BaseURL: custom, APIKey: "k"}},
+		Routes:    []config.Route{{Match: "*", Targets: []config.Target{{Provider: "nvidia"}}}},
+	}
+	r, err := buildRouter(cfg, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Resolve("m")
 	a, ok := got.Provider.(interface{ BaseURL() string })
 	if !ok || a.BaseURL() != custom {
 		t.Fatalf("provider %T", got.Provider)
@@ -547,6 +639,7 @@ func TestServeRecordsOpenStreamOnShutdown(t *testing.T) {
 		t.Fatalf("records %+v", recs)
 	}
 }
+
 func TestStopOnContextDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	called := make(chan struct{}, 1)
@@ -681,5 +774,109 @@ func TestBuildRouterCooldownSettings(t *testing.T) {
 	r.Report(p.Targets[0], false)
 	if p, _ = r.Plan("m"); p.Targets[0].Provider.Name() != "b" {
 		t.Fatalf("one failure did not cool the target with cooldown_failures 1: %+v", p)
+	}
+}
+
+func TestConfigTest(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "transponder.db")
+
+	writeYAML := func(name, content string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	validCfg := writeYAML("valid.yaml", fmt.Sprintf(`
+listen_addr: ":8080"
+store:
+  sqlite: %q
+providers:
+  - name: my-echo
+    type: echo
+routes:
+  - match: "*"
+    targets:
+      - provider: my-echo
+`, dbPath))
+
+	unknownProviderTypeCfg := writeYAML("unknown_type.yaml", `
+providers:
+  - name: p1
+    type: nonexistent_type
+routes:
+  - match: "*"
+    targets:
+      - provider: p1
+`)
+
+	missingProviderCfg := writeYAML("missing_provider.yaml", `
+providers:
+  - name: p1
+    type: echo
+routes:
+  - match: "*"
+    targets:
+      - provider: p2
+`)
+
+	badEnvCfg := writeYAML("bad_env.yaml", `
+listen_addr: ${UNDEFINED_TRANSPONDER_VAR}
+`)
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantStdout string
+		wantStderr string
+	}{
+		{
+			name:       "valid config succeeds and prints ok",
+			args:       []string{"--config-test", "--config", validCfg},
+			wantCode:   0,
+			wantStdout: "transponder: config ok\n",
+		},
+		{
+			name:       "unknown provider type fails validation",
+			args:       []string{"--config-test", "--config", unknownProviderTypeCfg},
+			wantCode:   1,
+			wantStderr: "unknown type",
+		},
+		{
+			name:       "route pointing to missing provider fails",
+			args:       []string{"--config-test", "--config", missingProviderCfg},
+			wantCode:   1,
+			wantStderr: "uses provider \"p2\", which is not declared",
+		},
+		{
+			name:       "bad env expansion in config fails",
+			args:       []string{"--config-test", "--config", badEnvCfg},
+			wantCode:   1,
+			wantStderr: "UNDEFINED_TRANSPONDER_VAR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := run(tt.args, &stdout, &stderr)
+			if code != tt.wantCode {
+				t.Fatalf("code = %d, want %d (stderr: %s)", code, tt.wantCode, stderr.String())
+			}
+			if tt.wantStdout != "" && !strings.Contains(stdout.String(), tt.wantStdout) {
+				t.Fatalf("stdout = %q, want it to contain %q", stdout.String(), tt.wantStdout)
+			}
+			if tt.wantStderr != "" && !strings.Contains(stderr.String(), tt.wantStderr) {
+				t.Fatalf("stderr = %q, want it to contain %q", stderr.String(), tt.wantStderr)
+			}
+		})
+	}
+
+	// Verify that --config-test never created the database file
+	if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("database file %s was created by --config-test, want it not to exist", dbPath)
 	}
 }
