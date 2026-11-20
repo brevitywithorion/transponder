@@ -200,51 +200,6 @@ routes:
 	}
 }
 
-func TestLoadSkipsVarsInCommentLines(t *testing.T) {
-	body := `providers:
-  - name: lmstudio
-    type: lmstudio
-    # api_key: ${LMSTUDIO_API_KEY} # enable only when LM Studio requires authentication
-routes:
-  - match: "*"
-    targets:
-      - provider: lmstudio
-`
-	c, err := Load(writeFile(t, body), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(c.Providers) != 1 || c.Providers[0].Name != "lmstudio" || c.Providers[0].APIKey != "" {
-		t.Fatalf("providers = %+v", c.Providers)
-	}
-}
-
-func TestExpandCommentLines(t *testing.T) {
-	env := map[string]string{"HOST": "h"}
-	tests := []struct {
-		name, in, want, missing string
-	}{
-		{name: "indented comment is copied", in: "  # key: ${UNSET}\nb: ${HOST}", want: "  # key: ${UNSET}\nb: h"},
-		{name: "tab before the hash", in: "\t# ${UNSET}", want: "\t# ${UNSET}"},
-		{name: "a hash after a value is not a comment line", in: "url: http://${HOST}/#${HOST}", want: "url: http://h/#h"},
-		{name: "a missing variable outside comments still fails", in: "# ${UNSET}\nkey: ${ALSO_UNSET}", missing: "ALSO_UNSET"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := expand(tt.in, env)
-			if tt.missing != "" {
-				if err == nil || err.Error() != "config: environment variables not set: "+tt.missing {
-					t.Fatalf("err = %v, want only %s named", err, tt.missing)
-				}
-				return
-			}
-			if err != nil || got != tt.want {
-				t.Fatalf("expand = %q, %v, want %q", got, err, tt.want)
-			}
-		})
-	}
-}
-
 func TestLoadXAI(t *testing.T) {
 	p := writeFile(t, `providers:
   - name: xai

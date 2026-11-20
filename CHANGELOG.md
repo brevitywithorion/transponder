@@ -6,11 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
-- LM Studio provider (`type: lmstudio`) defaulting to `http://localhost:1234/v1`. `api_key` is optional and, when set, is sent as a bearer token. Targets using `lmstudio` count as free in usage costs. The example leaves `api_key` commented out until LM Studio requires authentication.
-
-### Fixed
-
-- A `${VARIABLE}` on a YAML comment line no longer has to be set for the config to load.
+- LM Studio provider (`type: lmstudio`) defaulting to `http://localhost:1234/v1`. `api_key` is optional and, when set, is sent as a bearer token. Targets using `lmstudio` count as free in usage costs.
 
 ## [0.2.4] - 2026-11-14
 

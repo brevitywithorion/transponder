@@ -321,44 +321,20 @@ func envMap(environ []string) map[string]string {
 	return m
 }
 
-// expand replaces ${VAR} and $VAR from env. Load does this before YAML parsing,
-// so a line that is only a comment is copied unchanged. A commented-out optional
-// key would otherwise still require its variable.
 func expand(s string, env map[string]string) (string, error) {
 	var missing []string
-	mapping := func(name string) string {
+	out := os.Expand(s, func(name string) string {
 		v, ok := env[name]
 		if !ok {
 			missing = append(missing, name)
 		}
 		return v
-	}
-	var b strings.Builder
-	b.Grow(len(s))
-	for s != "" {
-		line, rest, more := strings.Cut(s, "\n")
-		if yamlComment(line) {
-			b.WriteString(line)
-		} else {
-			b.WriteString(os.Expand(line, mapping))
-		}
-		if !more {
-			break
-		}
-		b.WriteByte('\n')
-		s = rest
-	}
+	})
 	if len(missing) > 0 {
 		sort.Strings(missing)
 		return "", fmt.Errorf("config: environment variables not set: %s", strings.Join(missing, ", "))
 	}
-	return b.String(), nil
-}
-
-// yamlComment reports whether line is a YAML comment. The # has to be the first
-// non-space character; a # later in a value is not a comment to this pass.
-func yamlComment(line string) bool {
-	return strings.HasPrefix(strings.TrimLeft(line, " \t\r"), "#")
+	return out, nil
 }
 
 func applyEnv(tree map[string]any, environ []string) {
