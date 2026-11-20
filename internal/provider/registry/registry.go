@@ -8,15 +8,20 @@ import (
 
 	"github.com/raven-clown/transponder/internal/provider"
 	"github.com/raven-clown/transponder/internal/provider/anthropic"
+	"github.com/raven-clown/transponder/internal/provider/cerebras"
 	"github.com/raven-clown/transponder/internal/provider/cloudflare"
 	"github.com/raven-clown/transponder/internal/provider/echo"
 	"github.com/raven-clown/transponder/internal/provider/gemini"
+	"github.com/raven-clown/transponder/internal/provider/groq"
 	"github.com/raven-clown/transponder/internal/provider/litellm"
 	"github.com/raven-clown/transponder/internal/provider/llamacpp"
 	"github.com/raven-clown/transponder/internal/provider/lmstudio"
+	"github.com/raven-clown/transponder/internal/provider/mistral"
+	"github.com/raven-clown/transponder/internal/provider/nvidia"
 	"github.com/raven-clown/transponder/internal/provider/ollama"
 	"github.com/raven-clown/transponder/internal/provider/openai"
 	"github.com/raven-clown/transponder/internal/provider/openrouter"
+	"github.com/raven-clown/transponder/internal/provider/siliconflow"
 	"github.com/raven-clown/transponder/internal/provider/vercel"
 	"github.com/raven-clown/transponder/internal/provider/vllm"
 	"github.com/raven-clown/transponder/internal/provider/xai"
@@ -66,6 +71,21 @@ var specs = []Spec{
 	}},
 	{Type: "vercel", New: func(s Settings) provider.Provider {
 		return vercel.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "mistral", New: func(s Settings) provider.Provider {
+		return mistral.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "nvidia", New: func(s Settings) provider.Provider {
+		return nvidia.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "groq", New: func(s Settings) provider.Provider {
+		return groq.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "cerebras", New: func(s Settings) provider.Provider {
+		return cerebras.New(s.Name, s.BaseURL, s.APIKey, s.Client)
+	}},
+	{Type: "siliconflow", New: func(s Settings) provider.Provider {
+		return siliconflow.New(s.Name, s.BaseURL, s.APIKey, s.Client)
 	}},
 	{Type: "vllm", Free: true, New: func(s Settings) provider.Provider {
 		return vllm.New(s.Name, s.BaseURL, s.APIKey, s.Client)
