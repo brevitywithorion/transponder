@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- Every log line carries `"service":"transponder"`, so logs from the four projects can be told apart in one place.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added
