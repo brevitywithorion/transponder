@@ -12,6 +12,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Fixed
 
 - `POST /admin/v1/keys` refuses an `expires_at` that is not after now with 400 `invalid`, instead of minting a key that fails at first use. `PATCH` still accepts a past time to retire a key at once.
+- An OpenAI-dialect answer whose `content` is a list of parts, such as Mistral's reasoning models, is read instead of failing the call: text parts are joined in order and a part with nothing for the caller, such as a `thinking` part, is skipped. A streamed `delta.content` given as a list is read the same way, so the stream is no longer treated as cut (#180).
 
 ## [0.3.0] - 2026-11-21
 
