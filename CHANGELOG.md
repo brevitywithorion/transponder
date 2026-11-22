@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Fixed
+
+- `--config-test` now rejects invalid provider `base_url` values using the same rules as the admin API. The error names the provider without showing the URL.
+
 ## [0.3.1] - 2026-11-21
 
 ### Changed

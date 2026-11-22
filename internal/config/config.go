@@ -533,6 +533,11 @@ func (c *Bootstrap) ValidateRuntime() error {
 		if spec.NeedsBaseURL && p.BaseURL == "" {
 			return fmt.Errorf("config: provider %q of type %s needs base_url", p.Name, p.Type)
 		}
+		if p.BaseURL != "" {
+			if u, err := url.Parse(p.BaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return fmt.Errorf("config: provider %q: base_url must be an http or https URL", p.Name)
+			}
+		}
 		names[p.Name] = true
 	}
 	for i, r := range c.Routes {

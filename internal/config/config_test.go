@@ -226,6 +226,7 @@ func TestLoadRejects(t *testing.T) {
 		environ []string
 		path    string
 		want    string
+		hidden  string
 	}{
 		{name: "unknown file key", body: "listen_adr: x\n"},
 		{name: "both stores", body: "store:\n  sqlite: a.db\n  postgres: postgres://x\n"},
@@ -253,6 +254,10 @@ func TestLoadRejects(t *testing.T) {
 		{name: "provider without name", body: "providers:\n  - type: echo\n", want: "providers[0]"},
 		{name: "duplicate provider", body: "providers:\n  - {name: a, type: echo}\n  - {name: a, type: echo}\n", want: `"a"`},
 		{name: "unknown provider type", body: "providers:\n  - {name: b, type: bedrock}\n", want: "bedrock"},
+		{name: "provider base URL without scheme", body: "providers:\n  - {name: no-scheme, type: openai, base_url: api.openai.com/v1}\nroutes:\n  - {match: '*', targets: [{provider: no-scheme}]}\n", want: `provider "no-scheme": base_url must be an http or https URL`},
+		{name: "provider base URL with unsupported scheme", body: "providers:\n  - {name: ftp-provider, type: openai, base_url: ftp://example.com}\nroutes:\n  - {match: '*', targets: [{provider: ftp-provider}]}\n", want: `provider "ftp-provider": base_url must be an http or https URL`},
+		{name: "provider base URL without host", body: "providers:\n  - {name: no-host, type: openai, base_url: 'https://'}\nroutes:\n  - {match: '*', targets: [{provider: no-host}]}\n", want: `provider "no-host": base_url must be an http or https URL`},
+		{name: "provider base URL error hides password", body: "providers:\n  - {name: private-provider, type: openai, base_url: 'https://user:secret@'}\nroutes:\n  - {match: '*', targets: [{provider: private-provider}]}\n", want: `provider "private-provider": base_url must be an http or https URL`, hidden: "secret"},
 		{name: "negative cooldown", body: "settings:\n  cooldown: -1s\n", want: "cooldown"},
 		{name: "negative cooldown failures", body: "settings:\n  cooldown_failures: -1\n", want: "cooldown_failures"},
 		{name: "negative attempt timeout", body: "settings:\n  attempt_timeout: -1s\n", want: "attempt_timeout"},
@@ -273,6 +278,9 @@ func TestLoadRejects(t *testing.T) {
 			_, err := Load(p, tt.environ)
 			if err == nil {
 				t.Fatal("expected an error")
+			}
+			if tt.hidden != "" && strings.Contains(err.Error(), tt.hidden) {
+				t.Fatal("error exposed a sensitive value")
 			}
 			if !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error %q does not name %q", err, tt.want)
