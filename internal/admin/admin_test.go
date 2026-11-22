@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/raven-clown/transponder/api"
 	"github.com/raven-clown/transponder/internal/auth"
+	"github.com/raven-clown/transponder/internal/provider/echo"
+	"github.com/raven-clown/transponder/internal/router"
 	"github.com/raven-clown/transponder/internal/runtime"
 	"github.com/raven-clown/transponder/internal/store"
 )
@@ -75,11 +78,50 @@ func TestStatus(t *testing.T) {
 	if cfg["version"] != float64(1) || cfg["reload_failed"] != false || cfg["failed_at"] != nil {
 		t.Fatalf("config %v", cfg)
 	}
+	// Without a router there is nothing to list, and the field is still there.
+	if cd, ok := body["cooldowns"].([]any); !ok || len(cd) != 0 {
+		t.Fatalf("cooldowns %v", body["cooldowns"])
+	}
 
 	e.reload.status = runtime.Status{Version: 3, LoadedAt: testNow, Failed: true, FailedVersion: 4, Error: "route x uses provider y", FailedAt: testNow}
 	cfg = decodeBody(t, e.do(auth.RoleViewer, http.MethodGet, "/status", nil))["config"].(map[string]any)
 	if cfg["reload_failed"] != true || cfg["failed_version"] != float64(4) || cfg["error"] != "route x uses provider y" || cfg["failed_at"] == nil {
 		t.Fatalf("config %v", cfg)
+	}
+}
+
+func TestStatusCooldowns(t *testing.T) {
+	e := newEnv(t)
+	prov := echo.New("ollama")
+	rt := router.New([]router.Route{{Match: "gpt-*", Targets: []router.Target{{Provider: prov, Type: "echo"}}}})
+	rt.SetCooldown(2, time.Minute, func() time.Time { return testNow })
+	e.router = rt
+
+	target, err := rt.Resolve("gpt-4o")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.Report(target, false)
+	if cd := decodeBody(t, e.do(auth.RoleViewer, http.MethodGet, "/status", nil))["cooldowns"].([]any); len(cd) != 0 {
+		t.Fatalf("cooldowns before the target cools: %v", cd)
+	}
+	rt.Report(target, false)
+
+	cd := decodeBody(t, e.do(auth.RoleViewer, http.MethodGet, "/status", nil))["cooldowns"].([]any)
+	if len(cd) != 1 {
+		t.Fatalf("cooldowns %v", cd)
+	}
+	c := cd[0].(map[string]any)
+	want := map[string]any{"route": "gpt-*", "provider": "ollama", "model": "gpt-4o", "failures": float64(2), "until": testNow.Add(time.Minute).Format(time.RFC3339Nano)}
+	for k, v := range want {
+		if c[k] != v {
+			t.Fatalf("cooldown %s = %v, want %v", k, c[k], v)
+		}
+	}
+
+	rt.Report(target, true)
+	if cd := decodeBody(t, e.do(auth.RoleViewer, http.MethodGet, "/status", nil))["cooldowns"].([]any); len(cd) != 0 {
+		t.Fatalf("cooldowns after a success: %v", cd)
 	}
 }
 

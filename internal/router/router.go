@@ -64,6 +64,9 @@ const maxHealth = 1024
 type health struct {
 	fails int
 	until time.Time
+	// route is the route whose target last failed, for the status page. The key does not
+	// hold it, since one provider and model can be a target of several routes.
+	route string
 }
 
 // healthTable is the failure record of targets, which routers built by a reload share.
@@ -201,9 +204,49 @@ func (r *Router) Report(t Resolved, ok bool) {
 		tab.m[key] = h
 	}
 	h.fails++
+	h.route = t.Route
 	if h.fails >= failures {
 		h.until = now.Add(cooldown)
 	}
+}
+
+// Cooldown is a target that failed enough times in a row to be tried last until Until. The
+// cooldown belongs to the provider and model, so every route with that target is affected;
+// Route is the one whose attempt failed last.
+type Cooldown struct {
+	Route    string
+	Provider string
+	Model    string
+	// Failures is the count in a row since the target last succeeded, which is at least the
+	// number that put it in cooldown.
+	Failures int
+	Until    time.Time
+}
+
+// Cooldowns returns the targets in cooldown, sorted by route, provider and model. It is a
+// copy, so a caller may keep it, and it leaves out entries whose cooldown has ended.
+func (r *Router) Cooldowns() []Cooldown {
+	now := r.cool.Load().now()
+	tab := r.health
+	tab.mu.Lock()
+	defer tab.mu.Unlock()
+	out := make([]Cooldown, 0, len(tab.m))
+	for k, h := range tab.m {
+		if !now.Before(h.until) {
+			continue
+		}
+		out = append(out, Cooldown{Route: h.route, Provider: k.provider, Model: k.model, Failures: h.fails, Until: h.until})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Route != out[j].Route {
+			return out[i].Route < out[j].Route
+		}
+		if out[i].Provider != out[j].Provider {
+			return out[i].Provider < out[j].Provider
+		}
+		return out[i].Model < out[j].Model
+	})
+	return out
 }
 
 // Models returns the names a caller can ask for: every route match without a wildcard,

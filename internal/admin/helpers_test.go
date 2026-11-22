@@ -17,6 +17,7 @@ import (
 
 	"github.com/raven-clown/transponder/internal/auth"
 	"github.com/raven-clown/transponder/internal/config"
+	"github.com/raven-clown/transponder/internal/router"
 	"github.com/raven-clown/transponder/internal/runtime"
 	"github.com/raven-clown/transponder/internal/secrets"
 	"github.com/raven-clown/transponder/internal/store"
@@ -64,6 +65,8 @@ type env struct {
 	h      http.Handler
 	spec   *spec
 	reload *fakeReloader
+	// router, when set, is what /status reports cooldowns from.
+	router *router.Router
 	logs   *bytes.Buffer
 	keys   map[auth.Role]string
 	file   *config.Bootstrap
@@ -116,6 +119,7 @@ func (e *env) with(st Store, file *config.Bootstrap, box *secrets.Box) *env {
 		Version:   "test",
 		StoreKind: "sqlite",
 		Started:   testNow.Add(-90 * time.Second),
+		Router:    func() *router.Router { return e.router },
 	})
 	return e
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/raven-clown/transponder/api"
 	"github.com/raven-clown/transponder/internal/auth"
 	"github.com/raven-clown/transponder/internal/config"
+	"github.com/raven-clown/transponder/internal/router"
 	"github.com/raven-clown/transponder/internal/runtime"
 	"github.com/raven-clown/transponder/internal/secrets"
 	"github.com/raven-clown/transponder/internal/store"
@@ -61,6 +62,9 @@ type Deps struct {
 	// Secrets seals provider keys. Nil means no secrets_key is set, and a provider key cannot
 	// be stored.
 	Secrets *secrets.Box
+	// Router, when set, returns the router serving now, whose cooldowns /status reports. Nil
+	// means no cooldowns are tracked.
+	Router func() *router.Router
 }
 
 type handler struct {

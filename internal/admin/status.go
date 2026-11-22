@@ -10,6 +10,15 @@ type statusJSON struct {
 	UptimeSeconds int64            `json:"uptime_seconds"`
 	Store         storeStatusJSON  `json:"store"`
 	Config        configStatusJSON `json:"config"`
+	Cooldowns     []cooldownJSON   `json:"cooldowns"`
+}
+
+type cooldownJSON struct {
+	Route    string `json:"route"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Failures int    `json:"failures"`
+	Until    string `json:"until"`
 }
 
 type storeStatusJSON struct {
@@ -34,6 +43,17 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		StartedAt:     formatTime(h.d.Started),
 		UptimeSeconds: int64(now.Sub(h.d.Started).Seconds()),
 		Store:         storeStatusJSON{Kind: h.d.StoreKind, Healthy: true},
+		Cooldowns:     []cooldownJSON{},
+	}
+	if h.d.Router != nil {
+		if rt := h.d.Router(); rt != nil {
+			for _, c := range rt.Cooldowns() {
+				out.Cooldowns = append(out.Cooldowns, cooldownJSON{
+					Route: c.Route, Provider: c.Provider, Model: c.Model,
+					Failures: c.Failures, Until: formatTime(c.Until),
+				})
+			}
+		}
 	}
 	if err := h.d.Store.Ping(r.Context()); err != nil {
 		out.Store.Healthy, out.Store.Error = false, err.Error()

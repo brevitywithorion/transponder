@@ -191,6 +191,102 @@ func TestCooldown(t *testing.T) {
 	r.Report(other.Targets[0], false)
 }
 
+// Cooldowns is what /admin/v1/status shows: the targets still cooling, as a copy the caller
+// may keep.
+func TestCooldowns(t *testing.T) {
+	a, b := echo.New("a"), echo.New("b")
+	now := time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)
+	r := New([]Route{
+		{Match: "fast", Targets: []Target{{Provider: a}}},
+		{Match: "gpt-*", Targets: []Target{{Provider: b}}},
+	})
+	r.SetCooldown(2, 30*time.Second, func() time.Time { return now })
+
+	if got := r.Cooldowns(); len(got) != 0 {
+		t.Fatalf("cooldowns before any failure = %+v", got)
+	}
+
+	fast, err := r.Resolve("fast")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Report(fast, false)
+	if got := r.Cooldowns(); len(got) != 0 {
+		t.Fatalf("reported after one failure, before the target cools: %+v", got)
+	}
+	r.Report(fast, false)
+
+	gpt, err := r.Resolve("gpt-5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gpt.Provider.Name() != "b" {
+		t.Fatalf("gpt-5 goes to %q, want b", gpt.Provider.Name())
+	}
+	r.Report(gpt, false)
+	r.Report(gpt, false)
+
+	want := []Cooldown{
+		{Route: "fast", Provider: "a", Model: "fast", Failures: 2, Until: now.Add(30 * time.Second)},
+		{Route: "gpt-*", Provider: "b", Model: "gpt-5", Failures: 2, Until: now.Add(30 * time.Second)},
+	}
+	got := r.Cooldowns()
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("cooldowns = %+v, want %+v", got, want)
+	}
+
+	// The list is a copy: changing it does not change the router.
+	got[0].Failures = 99
+	if again := r.Cooldowns(); again[0].Failures != 2 {
+		t.Fatalf("cooldowns share the router's record: %+v", again)
+	}
+
+	now = now.Add(31 * time.Second)
+	if got := r.Cooldowns(); len(got) != 0 {
+		t.Fatalf("cooldowns after the cooldown ended = %+v", got)
+	}
+
+	// A failure after the cooldown ends trips it again on the count kept since the last
+	// success, and the other target's ended entry stays out.
+	r.Report(fast, false)
+	if got := r.Cooldowns(); len(got) != 1 || got[0].Provider != "a" || got[0].Failures != 3 {
+		t.Fatalf("cooldowns after cooling again = %+v", got)
+	}
+	r.Report(fast, true)
+	if got := r.Cooldowns(); len(got) != 0 {
+		t.Fatalf("cooldowns after a success = %+v", got)
+	}
+}
+
+// A cooldown belongs to the provider and model, so one target of two routes is one entry, and
+// the route it names is the one whose attempt failed last.
+func TestCooldownNamesTheRouteThatFailedLast(t *testing.T) {
+	a := echo.New("a")
+	now := time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)
+	r := New([]Route{
+		{Match: "fast", Targets: []Target{{Provider: a, Model: "shared"}}},
+		{Match: "slow", Targets: []Target{{Provider: a, Model: "shared"}}},
+	})
+	r.SetCooldown(1, time.Minute, func() time.Time { return now })
+
+	fast, err := r.Resolve("fast")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slow, err := r.Resolve("slow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Report(fast, false)
+	if got := r.Cooldowns(); len(got) != 1 || got[0].Route != "fast" || got[0].Model != "shared" {
+		t.Fatalf("cooldowns after a failure on the fast route = %+v", got)
+	}
+	r.Report(slow, false)
+	if got := r.Cooldowns(); len(got) != 1 || got[0].Route != "slow" || got[0].Failures != 2 {
+		t.Fatalf("cooldowns after a failure on the slow route = %+v", got)
+	}
+}
+
 // A reload builds a new router; it keeps the targets' failures, including ones calls still
 // running on the old router report afterwards.
 func TestKeepHealth(t *testing.T) {
@@ -209,9 +305,15 @@ func TestKeepHealth(t *testing.T) {
 	if p, _ := next.Plan("m"); planNames(p) != "b/m a/m" {
 		t.Fatalf("the cooldown was lost on reload: %s", planNames(p))
 	}
+	if got := next.Cooldowns(); len(got) != 1 || got[0].Provider != "a" || got[0].Model != "m" || got[0].Route != "*" {
+		t.Fatalf("cooldowns after a reload = %+v", got)
+	}
 	old.Report(primary, true)
 	if p, _ := next.Plan("m"); planNames(p) != "a/m b/m" {
 		t.Fatalf("a success reported on the old router did not reach the new one: %s", planNames(p))
+	}
+	if got := next.Cooldowns(); len(got) != 0 {
+		t.Fatalf("cooldowns after a success on the old router = %+v", got)
 	}
 	next.KeepHealth(nil)
 	if p, _ := next.Plan("m"); planNames(p) != "a/m b/m" {

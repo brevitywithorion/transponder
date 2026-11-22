@@ -796,7 +796,7 @@ components:
     Status:
       type: object
       additionalProperties: false
-      required: [version, started_at, uptime_seconds, store, config]
+      required: [version, started_at, uptime_seconds, store, config, cooldowns]
       properties:
         version: { type: string, description: The transponder build. }
         started_at: { type: string, format: date-time }
@@ -822,6 +822,19 @@ components:
             failed_version: { type: integer }
             error: { type: string }
             failed_at: { type: string, format: date-time }
+        cooldowns:
+          type: array
+          description: The targets this replica is trying last because they kept failing, one entry per provider and model. Cooldown state is kept per replica, so two replicas can report different lists.
+          items:
+            type: object
+            additionalProperties: false
+            required: [route, provider, model, failures, until]
+            properties:
+              route: { type: string, description: The route whose attempt to the target failed last. The cooldown belongs to the provider and model, so every route with that target is affected, and a reload that removes the route still reports the target until its cooldown ends. }
+              provider: { type: string }
+              model: { type: string, description: The model sent upstream. }
+              failures: { type: integer, description: The failures in a row since the target last succeeded, which is at least the number that put it in cooldown. }
+              until: { type: string, format: date-time, description: When the cooldown ends and the target is tried in its configured order again. }
 
     Role:
       type: string

@@ -224,6 +224,9 @@ func serve(ctx context.Context, cfg *config.Bootstrap, ln net.Listener, stdout, 
 			Started:   started,
 			File:      cfg,
 			Secrets:   box,
+			Router: func() *router.Router {
+				return reloader.Current().Value.router
+			},
 		}),
 	})
 	// Requests run on their own context so a drain that runs out of time can end them,

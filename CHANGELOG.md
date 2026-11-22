@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- `GET /admin/v1/status` lists the targets in cooldown as `cooldowns`, each with its route, provider, model, failures and when its cooldown ends and it is tried in its configured order again, so a target that keeps failing can be seen without reading `transponder_fallbacks_total`. The list is this replica's view, because cooldown state is kept per replica (#185).
+
 ### Fixed
 
 - `--config-test` now rejects invalid provider `base_url` values using the same rules as the admin API. The error names the provider without showing the URL.
