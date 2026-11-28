@@ -29,8 +29,10 @@ func (g *gateway) chat(w http.ResponseWriter, r *http.Request) {
 	if !g.resolve(c, peek.Model) {
 		return
 	}
-	top := topFields(c.body)
-	if !g.admit(c, limits.Estimate{InputTokens: estimateInput(c.body), OutputTokens: maxField(top, "max_completion_tokens", "max_tokens"), Choices: maxField(top, "n")}) {
+	if !g.admit(c, func() limits.Estimate {
+		top := topFields(c.body)
+		return limits.Estimate{InputTokens: estimateInput(c.body), OutputTokens: maxField(top, "max_completion_tokens", "max_tokens"), Choices: maxField(top, "n")}
+	}) {
 		return
 	}
 	out, _ := c.ticket.Caps()
@@ -82,7 +84,7 @@ func (g *gateway) chatNative(c *call, n provider.Native) error {
 	setUsageHeaders(c.w.Header(), u, cost)
 	c.w.Header().Set("Content-Type", "application/json")
 	c.w.WriteHeader(resp.StatusCode)
-	_, _ = c.w.Write(out)
+	_, _ = c.w.Write(out) //nolint:gosec // the provider's JSON, served as application/json
 	return nil
 }
 

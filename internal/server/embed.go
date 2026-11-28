@@ -25,7 +25,7 @@ func (g *gateway) embeddings(w http.ResponseWriter, r *http.Request) {
 	if !g.resolve(c, peek.Model) {
 		return
 	}
-	if !g.admit(c, limits.Estimate{InputTokens: estimateInput(c.body), NoOutput: true}) {
+	if !g.admit(c, func() limits.Estimate { return limits.Estimate{InputTokens: estimateInput(c.body), NoOutput: true} }) {
 		return
 	}
 	g.run(c, func() error {
@@ -62,7 +62,7 @@ func (g *gateway) embedNative(c *call, n provider.Native) error {
 	setUsageHeaders(c.w.Header(), u, cost)
 	c.w.Header().Set("Content-Type", "application/json")
 	c.w.WriteHeader(resp.StatusCode)
-	_, _ = c.w.Write(out)
+	_, _ = c.w.Write(out) //nolint:gosec // the provider's JSON, served as application/json
 	return nil
 }
 
