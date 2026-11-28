@@ -261,8 +261,17 @@ func TestEstimateInputDoesNotCopyEscapedStrings(t *testing.T) {
 	if !json.Valid(body) {
 		t.Fatal("the test body is not JSON")
 	}
-	if allocs := testing.AllocsPerRun(20, func() { estimateInput(body) }); allocs > 0 {
-		t.Fatalf("%v allocations for a body of escaped strings", allocs)
+	// The count is taken from the whole process, so an allocation by another goroutine in the
+	// window can show up in one measurement. A call that allocates shows up in every window,
+	// so the body passes when one window is clean.
+	var allocs float64
+	for range 5 {
+		if allocs = testing.AllocsPerRun(20, func() { estimateInput(body) }); allocs == 0 {
+			break
+		}
+	}
+	if allocs > 0 {
+		t.Fatalf("%v allocations for a body of escaped strings in every window", allocs)
 	}
 	if got, want := estimateInput(body), referenceEstimate(body); got != want {
 		t.Fatalf("estimate %d, reference %d", got, want)
