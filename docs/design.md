@@ -481,5 +481,6 @@ Done:
 | v0.3.0 | Access per route, OIDC and the three roles, the admin API and audit log, Postgres and several replicas, Prometheus metrics and OTLP tracing, the five-minute demo, images in chat, `POST /v1/responses` as a passthrough; Mistral, NVIDIA NIM, Groq, Cerebras, SiliconFlow and LM Studio providers |
 | v0.3.1 | 429 with `Retry-After` when every target is rate limiting, listen addresses checked at load, expired keys refused at creation, OpenAI content given as a list of parts, a clearer trailing-slash issuer error |
 | v0.3.2 | Targets in cooldown in `/admin/v1/status`, provider `base_url` checked at load, config routes with a repeated `match` or after `*` refused |
+| v0.3.3 | Faster request handling: bodies read into a buffer sized from `Content-Length`, OpenAI requests rewritten without a map, the input token estimate in one pass, usage and rate limit headers written without `fmt` |
 
 Next: the items after v1 listed above, in that order, versions to be set.
